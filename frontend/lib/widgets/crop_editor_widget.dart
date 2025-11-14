@@ -152,15 +152,20 @@ class _CropEditorWidgetState extends State<CropEditorWidget> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Expanded(
-        child: CropImage(
-          controller: _cropController,
-          image: imageWidget,
-          paddingSize: 20.0,
-          alwaysMove: true,
-          minimumImageSize: 200,
-          maximumImageSize: 4096,
+        child: 
+         Hero(
+          tag: 'photo-editing',
+          child:
+          CropImage(
+            controller: _cropController,
+            image: imageWidget,
+            paddingSize: 20.0,
+            alwaysMove: true,
+            minimumImageSize: 200,
+            maximumImageSize: 4096,
+          ),
         ),
-      ),
+      )
     );
   }
 

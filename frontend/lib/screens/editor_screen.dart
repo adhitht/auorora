@@ -46,6 +46,29 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  void _handleToolSelection(EditorTool tool) {
+    if (tool != EditorTool.crop && _isCropMode) {
+      setState(() {
+        _isCropMode = false;
+      });
+    }
+
+    switch (tool) {
+      case EditorTool.crop:
+        _enterCropMode();
+        break;
+      case EditorTool.relight:
+        // TODO: Implement relight
+        break;
+      case EditorTool.reframe:
+        // TODO: Implement reframe
+        break;
+      case EditorTool.filters:
+        // TODO: Implement filters
+        break;
+    }
+  }
+
   void _exitCropMode() {
     setState(() {
       _isCropMode = false;
@@ -58,9 +81,9 @@ class _EditorScreenState extends State<EditorScreen>
       _isCropMode = false;
       _isProcessing = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Crop applied')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Crop applied')));
   }
 
   Future<void> _savePhoto() async {
@@ -80,7 +103,9 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Photo saved successfully to ${savedFile.path}')),
+          SnackBar(
+            content: Text('Photo saved successfully to ${savedFile.path}'),
+          ),
         );
       }
     } catch (e) {
@@ -120,7 +145,13 @@ class _EditorScreenState extends State<EditorScreen>
             bottom: 0,
             child: EditorBottomBar(
               toolCallbacks: <EditorTool, VoidCallback?>{
-                EditorTool.crop: _enterCropMode,
+                EditorTool.crop: () => _handleToolSelection(EditorTool.crop),
+                EditorTool.relight: () =>
+                    _handleToolSelection(EditorTool.relight),
+                EditorTool.reframe: () =>
+                    _handleToolSelection(EditorTool.reframe),
+                EditorTool.filters: () =>
+                    _handleToolSelection(EditorTool.filters),
               },
             ),
           ),
@@ -206,19 +237,35 @@ class _EditorScreenState extends State<EditorScreen>
 
     return Center(
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 10),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return ScaleTransition(
+            scale: Tween<double>(begin: 0.95, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+            ),
+            child: child,
+          );
+        },
         child: _isCropMode
             ? CropEditorWidget(
+                key: const ValueKey('crop-mode'),
                 imageFile: _currentPhotoFile!,
                 onCancel: _exitCropMode,
                 onApply: _onCropApplied,
                 onShowMessage: (message, isSuccess) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(message)),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(message)));
                 },
               )
-            : Image.file(_currentPhotoFile!, fit: BoxFit.contain),
+            : Hero(
+                tag: 'photo-editing',
+                child: Image.file(
+                  _currentPhotoFile!,
+                  key: const ValueKey('normal-mode'),
+                  fit: BoxFit.contain,
+                ),
+              ),
       ),
     );
   }
