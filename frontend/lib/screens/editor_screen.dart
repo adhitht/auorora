@@ -4,10 +4,13 @@ import 'package:flutter/services.dart';
 
 import '../theme/liquid_glass_theme.dart';
 import '../services/image_processing_service.dart';
+import '../services/edit_history_manager.dart';
+import '../models/edit_history.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/editor_bottom_bar.dart';
 import '../widgets/crop_editor_widget.dart';
 import '../widgets/relight_editor_widget.dart';
+import '../widgets/history_viewer_dialog.dart';
 
 class EditorScreen extends StatefulWidget {
   final File photoFile;
@@ -32,15 +35,111 @@ class _EditorScreenState extends State<EditorScreen>
   Widget Function()? _cropControlPanelBuilder;
 
   final ImageProcessingService _imageService = ImageProcessingService();
+  late final EditHistoryManager _historyManager;
+
   @override
   void initState() {
     super.initState();
     _currentPhotoFile = widget.photoFile;
+
+    // Initialize history manager
+    _historyManager = EditHistoryManager(maxHistorySize: 50);
+
+    // Add initial image to history
+    _historyManager.addEntry(
+      EditHistoryEntry(
+        imageFile: widget.photoFile,
+        type: EditType.initial,
+        metadata: {
+          'filename': widget.photoFile.path.split('/').last,
+          'size': widget.photoFile.lengthSync(),
+        },
+      ),
+    );
+
+    // Listen to history changes
+    _historyManager.addListener(_onHistoryChanged);
+  }
+
+  @override
+  void dispose() {
+    _historyManager.removeListener(_onHistoryChanged);
+    _historyManager.dispose();
+    super.dispose();
+  }
+
+  void _onHistoryChanged() {
+    setState(() {}); // Rebuild to update undo/redo button states
   }
 
   void _navigateBack() {
     HapticFeedback.mediumImpact();
     Navigator.of(context).pop();
+  }
+
+  void _handleUndo() {
+    if (!_historyManager.canUndo) return;
+
+    HapticFeedback.mediumImpact();
+    final entry = _historyManager.undo();
+
+    if (entry != null) {
+      setState(() {
+        _currentPhotoFile = entry.imageFile;
+        _exitCropMode();
+        _exitRelightMode();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Undone: ${entry.type.displayName}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _handleRedo() {
+    if (!_historyManager.canRedo) return;
+
+    HapticFeedback.mediumImpact();
+    final entry = _historyManager.redo();
+
+    if (entry != null) {
+      setState(() {
+        _currentPhotoFile = entry.imageFile;
+        _exitCropMode();
+        _exitRelightMode();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Redone: ${entry.type.displayName}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _showHistoryViewer() {
+    HapticFeedback.lightImpact();
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (context) => HistoryViewerDialog(
+        historyManager: _historyManager,
+        onJumpTo: (index) {
+          final entry = _historyManager.jumpTo(index);
+          if (entry != null) {
+            setState(() {
+              _currentPhotoFile = entry.imageFile;
+              _exitCropMode();
+              _exitRelightMode();
+            });
+          }
+        },
+      ),
+    );
   }
 
   void _enterCropMode() {
@@ -109,6 +208,18 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   void _onCropApplied(File croppedFile) {
+    // Add to history with metadata
+    _historyManager.addEntry(
+      EditHistoryEntry(
+        imageFile: croppedFile,
+        type: EditType.crop,
+        metadata: {
+          'filename': croppedFile.path.split('/').last,
+          'size': croppedFile.lengthSync(),
+        },
+      ),
+    );
+
     setState(() {
       _currentPhotoFile = croppedFile;
       _isCropMode = false;
@@ -119,7 +230,23 @@ class _EditorScreenState extends State<EditorScreen>
     ).showSnackBar(const SnackBar(content: Text('Crop applied')));
   }
 
-  void _onRelightApplied(File relitFile) {
+  void _onRelightApplied(File relitFile, Map<String, dynamic> adjustments) {
+    // Add to history with metadata including adjustment values
+    _historyManager.addEntry(
+      EditHistoryEntry(
+        imageFile: relitFile,
+        type: EditType.relight,
+        metadata: {
+          'filename': relitFile.path.split('/').last,
+          'size': relitFile.lengthSync(),
+          'exposure': adjustments['exposure'],
+          'contrast': adjustments['contrast'],
+          'highlights': adjustments['highlights'],
+          'shadows': adjustments['shadows'],
+        },
+      ),
+    );
+
     setState(() {
       _currentPhotoFile = relitFile;
       _isRelightMode = false;
@@ -174,7 +301,12 @@ class _EditorScreenState extends State<EditorScreen>
               EditorTopBar(
                 onBackTap: _navigateBack,
                 onSaveTap: _savePhoto,
+                onUndoTap: _handleUndo,
+                onRedoTap: _handleRedo,
+                onHistoryTap: _showHistoryViewer,
                 isSaving: _isProcessing,
+                canUndo: _historyManager.canUndo,
+                canRedo: _historyManager.canRedo,
               ),
 
               Expanded(child: _buildPhotoArea()),
@@ -367,7 +499,7 @@ class _EditorScreenState extends State<EditorScreen>
                 tag: 'photo-editing',
                 child: Image.file(
                   _currentPhotoFile!,
-                  key: const ValueKey('normal-mode'),
+                  key: ValueKey('normal-mode-${_currentPhotoFile!.path}'),
                   fit: BoxFit.contain,
                 ),
               ),

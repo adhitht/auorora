@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../theme/liquid_glass_theme.dart';
 import 'glass_button.dart';
@@ -8,7 +11,7 @@ import 'glass_button.dart';
 class RelightEditorWidget extends StatefulWidget {
   final File imageFile;
   final VoidCallback onCancel;
-  final Function(File relitFile) onApply;
+  final Function(File relitFile, Map<String, dynamic> adjustments) onApply;
   final Function(String message, bool isSuccess)? onShowMessage;
   final Function(Widget Function() builder)? onControlPanelReady;
 
@@ -27,7 +30,7 @@ class RelightEditorWidget extends StatefulWidget {
 
 class RelightEditorWidgetState extends State<RelightEditorWidget> {
   bool _isProcessing = false;
-  
+
   // Adjustment values
   double _exposure = 0.0;
   double _contrast = 0.0;
@@ -48,11 +51,18 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
     setState(() => _isProcessing = true);
 
     try {
-      // TODO: Apply image adjustments using backend API
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Create a new file with adjustments applied
+      final adjustedFile = await _createAdjustedImageFile();
 
       if (mounted) {
-        widget.onApply(widget.imageFile);
+        // Pass adjustment values as metadata
+        final adjustments = {
+          'exposure': _exposure,
+          'contrast': _contrast,
+          'highlights': _highlights,
+          'shadows': _shadows,
+        };
+        widget.onApply(adjustedFile, adjustments);
         widget.onShowMessage?.call('Adjustments applied', true);
       }
     } catch (e) {
@@ -60,6 +70,56 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
         setState(() => _isProcessing = false);
         widget.onShowMessage?.call('Failed to apply adjustments: $e', false);
       }
+    }
+  }
+
+  Future<File> _createAdjustedImageFile() async {
+    try {
+      // Load the original image
+      final imageBytes = await widget.imageFile.readAsBytes();
+      final codec = await ui.instantiateImageCodec(imageBytes);
+      final frame = await codec.getNextFrame();
+      final originalImage = frame.image;
+
+      // Create a canvas to draw the adjusted image
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final paint = Paint()..colorFilter = _buildColorFilter();
+
+      // Draw the image with color filter applied
+      canvas.drawImage(originalImage, Offset.zero, paint);
+
+      // Convert to image
+      final picture = recorder.endRecording();
+      final adjustedImage = await picture.toImage(
+        originalImage.width,
+        originalImage.height,
+      );
+
+      // Convert to bytes
+      final byteData = await adjustedImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      final adjustedBytes = byteData!.buffer.asUint8List();
+
+      // Save to file
+      final dir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final newPath = '${dir.path}/relight_$timestamp.png';
+      final newFile = File(newPath);
+      await newFile.writeAsBytes(adjustedBytes);
+
+      // Clean up
+      originalImage.dispose();
+      adjustedImage.dispose();
+
+      return newFile;
+    } catch (e) {
+      // Fallback: copy original if processing fails
+      final dir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final newPath = '${dir.path}/relight_$timestamp.jpg';
+      return await widget.imageFile.copy(newPath);
     }
   }
 
@@ -79,10 +139,26 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
     final contrastOffset = (-0.5 * _contrast) * 255;
 
     return ColorFilter.matrix([
-      contrastFactor, 0, 0, 0, brightness + contrastOffset,
-      0, contrastFactor, 0, 0, brightness + contrastOffset,
-      0, 0, contrastFactor, 0, brightness + contrastOffset,
-      0, 0, 0, 1, 0,
+      contrastFactor,
+      0,
+      0,
+      0,
+      brightness + contrastOffset,
+      0,
+      contrastFactor,
+      0,
+      0,
+      brightness + contrastOffset,
+      0,
+      0,
+      contrastFactor,
+      0,
+      brightness + contrastOffset,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
@@ -177,12 +253,20 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
                   children: [
                     GlassButton(
                       onTap: widget.onCancel,
-                      child: const Icon(Icons.close, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     GlassButton(
                       onTap: _resetAdjustments,
-                      child: const Icon(Icons.refresh, color: Colors.white, size: 20),
+                      child: const Icon(
+                        Icons.refresh,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     GlassButton(

@@ -7,13 +7,23 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 class EditorTopBar extends StatelessWidget {
   final VoidCallback onBackTap;
   final VoidCallback onSaveTap;
+  final VoidCallback? onUndoTap;
+  final VoidCallback? onRedoTap;
+  final VoidCallback? onHistoryTap;
   final bool isSaving;
+  final bool canUndo;
+  final bool canRedo;
 
   const EditorTopBar({
     super.key,
     required this.onBackTap,
     required this.onSaveTap,
+    this.onUndoTap,
+    this.onRedoTap,
+    this.onHistoryTap,
     this.isSaving = false,
+    this.canUndo = false,
+    this.canRedo = false,
   });
 
   @override
@@ -63,25 +73,37 @@ class EditorTopBar extends StatelessWidget {
                       child: Row(
                         children: [
                           IconButton(
-                            onPressed: () {},
-                            icon: const Icon(
+                            onPressed: canUndo ? onUndoTap : null,
+                            icon: Icon(
                               CupertinoIcons.arrow_uturn_left,
                               size: 20,
-                              color: Colors.white,
+                              color: canUndo
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.3),
                             ),
                           ),
-                           IconButton(
-                            onPressed: () {},
-                            icon: const Icon(
+                          IconButton(
+                            onPressed: canRedo ? onRedoTap : null,
+                            icon: Icon(
                               CupertinoIcons.arrow_uturn_right,
+                              size: 20,
+                              color: canRedo
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: onHistoryTap,
+                            icon: const Icon(
+                              CupertinoIcons.clock,
                               size: 20,
                               color: Colors.white,
                             ),
                           ),
-                           IconButton(
+                          IconButton(
                             onPressed: () {},
                             icon: const Icon(
-                              CupertinoIcons.arrow_down_to_line,
+                              CupertinoIcons.ellipsis,
                               size: 20,
                               color: Colors.white,
                             ),

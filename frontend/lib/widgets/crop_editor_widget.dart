@@ -109,6 +109,7 @@ class CropEditorWidgetState extends State<CropEditorWidget> {
     });
   }
 
+//TODO: Integrate later
   void _rotateLeft() {
     _cropController.rotateLeft();
     setState(() {
