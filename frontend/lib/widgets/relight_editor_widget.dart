@@ -27,8 +27,8 @@ class RelightEditorWidget extends StatefulWidget {
 
 class RelightEditorWidgetState extends State<RelightEditorWidget> {
   bool _isProcessing = false;
-
-  // Adjustment values (range: -1.0 to 1.0 for easier calculations)
+  
+  // Adjustment values
   double _exposure = 0.0;
   double _contrast = 0.0;
   double _highlights = 0.0;
@@ -37,7 +37,6 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
   @override
   void initState() {
     super.initState();
-    // Notify parent that control panel is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onControlPanelReady?.call(buildControlPanel);
     });
@@ -46,13 +45,10 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
   Future<void> _applyRelight() async {
     if (_isProcessing) return;
 
-    setState(() {
-      _isProcessing = true;
-    });
+    setState(() => _isProcessing = true);
 
     try {
       // TODO: Apply image adjustments using backend API
-      // For now, just return the original file
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (mounted) {
@@ -61,9 +57,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
+        setState(() => _isProcessing = false);
         widget.onShowMessage?.call('Failed to apply adjustments: $e', false);
       }
     }
@@ -79,51 +73,25 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
   }
 
   ColorFilter _buildColorFilter() {
-    // Combine adjustments into a color matrix
-    // Base identity matrix
-    final brightness = _exposure * 0.3; // Scale exposure
-    final contrastFactor = 1.0 + (_contrast * 0.5); // Scale contrast
-    final highlightAdjust = _highlights * 0.2;
-    final shadowAdjust = _shadows * 0.2;
+    // Simplified and working color matrix
+    final brightness = (_exposure + _highlights + _shadows) * 40.0;
+    final contrastFactor = 1.0 + (_contrast * 0.5);
+    final contrastOffset = (-0.5 * _contrast) * 255;
 
-    // Simple color matrix transformation
-    // This is a simplified version - for production, use proper image processing
-    final matrix = <double>[
-      contrastFactor,
-      0,
-      0,
-      0,
-      brightness + highlightAdjust + shadowAdjust,
-      0,
-      contrastFactor,
-      0,
-      0,
-      brightness + highlightAdjust + shadowAdjust,
-      0,
-      0,
-      contrastFactor,
-      0,
-      brightness + highlightAdjust + shadowAdjust,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ];
-
-    return ColorFilter.matrix(matrix);
+    return ColorFilter.matrix([
+      contrastFactor, 0, 0, 0, brightness + contrastOffset,
+      0, contrastFactor, 0, 0, brightness + contrastOffset,
+      0, 0, contrastFactor, 0, brightness + contrastOffset,
+      0, 0, 0, 1, 0,
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    return _buildImagePreview();
-  }
-
-  Widget _buildImagePreview() {
     return Stack(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Hero(
             tag: 'photo-editing',
             child: ColorFiltered(
@@ -147,8 +115,6 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
     );
   }
 
-  // This method returns the control panel widget that should be positioned
-  // at the bottom of the screen by the parent
   Widget buildControlPanel() {
     return LiquidGlassLayer(
       settings: const LiquidGlassSettings(
@@ -158,104 +124,101 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
         lightIntensity: 0.15,
         saturation: 1,
       ),
-      child: LiquidStretch(
-        stretch: 0.5,
-        interactionScale: 1.05,
-        child: LiquidGlass(
-          shape: LiquidRoundedSuperellipse(borderRadius: 50),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Scrollable adjustment sliders
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 120),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildAdjustmentSlider(
-                            'Exposure',
-                            Icons.brightness_6,
-                            _exposure,
-                            (value) => setState(() => _exposure = value),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildAdjustmentSlider(
-                            'Contrast',
-                            Icons.contrast,
-                            _contrast,
-                            (value) => setState(() => _contrast = value),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildAdjustmentSlider(
-                            'Highlights',
-                            Icons.wb_sunny,
-                            _highlights,
-                            (value) => setState(() => _highlights = value),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildAdjustmentSlider(
-                            'Shadows',
-                            Icons.wb_shade,
-                            _shadows,
-                            (value) => setState(() => _shadows = value),
-                          ),
-                        ],
-                      ),
+      child: LiquidGlass(
+        shape: LiquidRoundedSuperellipse(borderRadius: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _AdjustmentSlider(
+                          label: 'Exposure',
+                          icon: Icons.brightness_6,
+                          value: _exposure,
+                          onChanged: (v) => setState(() => _exposure = v),
+                        ),
+                        const SizedBox(height: 12),
+                        _AdjustmentSlider(
+                          label: 'Contrast',
+                          icon: Icons.contrast,
+                          value: _contrast,
+                          onChanged: (v) => setState(() => _contrast = v),
+                        ),
+                        const SizedBox(height: 12),
+                        _AdjustmentSlider(
+                          label: 'Highlights',
+                          icon: Icons.wb_sunny,
+                          value: _highlights,
+                          onChanged: (v) => setState(() => _highlights = v),
+                        ),
+                        const SizedBox(height: 12),
+                        _AdjustmentSlider(
+                          label: 'Shadows',
+                          icon: Icons.wb_shade,
+                          value: _shadows,
+                          onChanged: (v) => setState(() => _shadows = v),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  // Action buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      GlassButton(
-                        onTap: widget.onCancel,
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 20,
-                        ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GlassButton(
+                      onTap: widget.onCancel,
+                      child: const Icon(Icons.close, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    GlassButton(
+                      onTap: _resetAdjustments,
+                      child: const Icon(Icons.refresh, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    GlassButton(
+                      onTap: _applyRelight,
+                      child: Icon(
+                        Icons.check,
+                        color: LiquidGlassTheme.primary,
+                        size: 20,
                       ),
-                      const SizedBox(width: 12),
-                      GlassButton(
-                        onTap: _resetAdjustments,
-                        child: const Icon(
-                          Icons.refresh,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GlassButton(
-                        onTap: _applyRelight,
-                        child: Icon(
-                          Icons.check,
-                          color: LiquidGlassTheme.primary,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildAdjustmentSlider(
-    String label,
-    IconData icon,
-    double value,
-    ValueChanged<double> onChanged,
-  ) {
+class _AdjustmentSlider extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _AdjustmentSlider({
+    required this.label,
+    required this.icon,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -271,41 +234,25 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: LiquidGlassTheme.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: LiquidGlassTheme.primary.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Text(
-                (value * 100).toStringAsFixed(0),
-                style: TextStyle(
-                  color: LiquidGlassTheme.primary.withValues(alpha: 0.9),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: LiquidGlassTheme.primary,
             inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
             thumbColor: LiquidGlassTheme.primary,
-            overlayColor: LiquidGlassTheme.primary.withValues(alpha: 0.2),
-            trackHeight: 3,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayColor: LiquidGlassTheme.primary.withValues(alpha: 0.3),
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+            trackShape: const RoundedRectSliderTrackShape(),
           ),
           child: Slider(
             value: value,
             min: -1.0,
             max: 1.0,
+            divisions: 200,
             onChanged: onChanged,
           ),
         ),

@@ -48,7 +48,6 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _isCropMode = true;
       _isRelightMode = false;
-      _cropControlPanelBuilder = null; // Reset builder
     });
   }
 
@@ -57,20 +56,26 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _isRelightMode = true;
       _isCropMode = false;
-      _relightControlPanelBuilder = null; // Reset builder
     });
   }
 
   void _handleToolSelection(EditorTool tool) {
+    // Check if clicking the same tool - toggle it off
+    if (tool == EditorTool.crop && _isCropMode) {
+      _exitCropMode();
+      return;
+    }
+    if (tool == EditorTool.relight && _isRelightMode) {
+      _exitRelightMode();
+      return;
+    }
+
+    // Exit other modes
     if (tool != EditorTool.crop && _isCropMode) {
-      setState(() {
-        _isCropMode = false;
-      });
+      _exitCropMode();
     }
     if (tool != EditorTool.relight && _isRelightMode) {
-      setState(() {
-        _isRelightMode = false;
-      });
+      _exitRelightMode();
     }
 
     switch (tool) {
@@ -92,12 +97,14 @@ class _EditorScreenState extends State<EditorScreen>
   void _exitCropMode() {
     setState(() {
       _isCropMode = false;
+      _cropControlPanelBuilder = null; // Clear builder when exiting
     });
   }
 
   void _exitRelightMode() {
     setState(() {
       _isRelightMode = false;
+      _relightControlPanelBuilder = null; // Clear builder when exiting
     });
   }
 
