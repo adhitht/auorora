@@ -7,6 +7,7 @@ import '../services/image_processing_service.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/editor_bottom_bar.dart';
 import '../widgets/crop_editor_widget.dart';
+import '../widgets/relight_editor_widget.dart';
 
 class EditorScreen extends StatefulWidget {
   final File photoFile;
@@ -25,9 +26,12 @@ class _EditorScreenState extends State<EditorScreen>
 
   File? _currentPhotoFile;
   bool _isCropMode = false;
+  bool _isRelightMode = false;
+
+  Widget Function()? _relightControlPanelBuilder;
+  Widget Function()? _cropControlPanelBuilder;
 
   final ImageProcessingService _imageService = ImageProcessingService();
-
   @override
   void initState() {
     super.initState();
@@ -43,6 +47,17 @@ class _EditorScreenState extends State<EditorScreen>
     if (_currentPhotoFile == null) return;
     setState(() {
       _isCropMode = true;
+      _isRelightMode = false;
+      _cropControlPanelBuilder = null; // Reset builder
+    });
+  }
+
+  void _enterRelightMode() {
+    if (_currentPhotoFile == null) return;
+    setState(() {
+      _isRelightMode = true;
+      _isCropMode = false;
+      _relightControlPanelBuilder = null; // Reset builder
     });
   }
 
@@ -52,13 +67,18 @@ class _EditorScreenState extends State<EditorScreen>
         _isCropMode = false;
       });
     }
+    if (tool != EditorTool.relight && _isRelightMode) {
+      setState(() {
+        _isRelightMode = false;
+      });
+    }
 
     switch (tool) {
       case EditorTool.crop:
         _enterCropMode();
         break;
       case EditorTool.relight:
-        // TODO: Implement relight
+        _enterRelightMode();
         break;
       case EditorTool.reframe:
         // TODO: Implement reframe
@@ -75,6 +95,12 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  void _exitRelightMode() {
+    setState(() {
+      _isRelightMode = false;
+    });
+  }
+
   void _onCropApplied(File croppedFile) {
     setState(() {
       _currentPhotoFile = croppedFile;
@@ -84,6 +110,17 @@ class _EditorScreenState extends State<EditorScreen>
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Crop applied')));
+  }
+
+  void _onRelightApplied(File relitFile) {
+    setState(() {
+      _currentPhotoFile = relitFile;
+      _isRelightMode = false;
+      _isProcessing = false;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Adjustments applied')));
   }
 
   Future<void> _savePhoto() async {
@@ -139,6 +176,45 @@ class _EditorScreenState extends State<EditorScreen>
             ],
           ),
 
+          // Crop controls panel (slides up from behind bottom bar)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            left: 12,
+            right: 12,
+            bottom: _isCropMode && _cropControlPanelBuilder != null ? 88 : -200,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _isCropMode && _cropControlPanelBuilder != null
+                  ? 1.0
+                  : 0.0,
+              child: _cropControlPanelBuilder != null
+                  ? _cropControlPanelBuilder!()
+                  : const SizedBox.shrink(),
+            ),
+          ),
+
+          // Relight controls panel (slides up from behind bottom bar)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            left: 12,
+            right: 12,
+            bottom: _isRelightMode && _relightControlPanelBuilder != null
+                ? 88
+                : -200,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _isRelightMode && _relightControlPanelBuilder != null
+                  ? 1.0
+                  : 0.0,
+              child: _relightControlPanelBuilder != null
+                  ? _relightControlPanelBuilder!()
+                  : const SizedBox.shrink(),
+            ),
+          ),
+
+          // Bottom bar (always visible, on top)
           Positioned(
             left: 0,
             right: 0,
@@ -237,7 +313,7 @@ class _EditorScreenState extends State<EditorScreen>
 
     return Center(
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 10),
+        duration: const Duration(milliseconds: 250),
         transitionBuilder: (Widget child, Animation<double> animation) {
           return ScaleTransition(
             scale: Tween<double>(begin: 0.95, end: 1.0).animate(
@@ -252,6 +328,28 @@ class _EditorScreenState extends State<EditorScreen>
                 imageFile: _currentPhotoFile!,
                 onCancel: _exitCropMode,
                 onApply: _onCropApplied,
+                onControlPanelReady: (builder) {
+                  setState(() {
+                    _cropControlPanelBuilder = builder;
+                  });
+                },
+                onShowMessage: (message, isSuccess) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(message)));
+                },
+              )
+            : _isRelightMode
+            ? RelightEditorWidget(
+                key: const ValueKey('relight-mode'),
+                imageFile: _currentPhotoFile!,
+                onCancel: _exitRelightMode,
+                onApply: _onRelightApplied,
+                onControlPanelReady: (builder) {
+                  setState(() {
+                    _relightControlPanelBuilder = builder;
+                  });
+                },
                 onShowMessage: (message, isSuccess) {
                   ScaffoldMessenger.of(
                     context,
