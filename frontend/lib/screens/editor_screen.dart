@@ -10,6 +10,7 @@ import '../widgets/editor_top_bar.dart';
 import '../widgets/editor_bottom_bar.dart';
 import '../widgets/crop_editor_widget.dart';
 import '../widgets/relight_editor_widget.dart';
+import '../widgets/reframe_editor_widget.dart';
 import '../widgets/history_viewer_dialog.dart';
 
 class EditorScreen extends StatefulWidget {
@@ -30,9 +31,11 @@ class _EditorScreenState extends State<EditorScreen>
   File? _currentPhotoFile;
   bool _isCropMode = false;
   bool _isRelightMode = false;
+  bool _isReframeMode = false;
 
   Widget Function()? _relightControlPanelBuilder;
   Widget Function()? _cropControlPanelBuilder;
+  Widget Function()? _reframeControlPanelBuilder;
 
   final ImageProcessingService _imageService = ImageProcessingService();
   late final EditHistoryManager _historyManager;
@@ -147,6 +150,7 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _isCropMode = true;
       _isRelightMode = false;
+      _isReframeMode = false;
     });
   }
 
@@ -155,6 +159,16 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _isRelightMode = true;
       _isCropMode = false;
+      _isReframeMode = false;
+    });
+  }
+
+  void _enterReframeMode() {
+    if (_currentPhotoFile == null) return;
+    setState(() {
+      _isReframeMode = true;
+      _isCropMode = false;
+      _isRelightMode = false;
     });
   }
 
@@ -168,6 +182,10 @@ class _EditorScreenState extends State<EditorScreen>
       _exitRelightMode();
       return;
     }
+    if (tool == EditorTool.reframe && _isReframeMode) {
+      _exitReframeMode();
+      return;
+    }
 
     // Exit other modes
     if (tool != EditorTool.crop && _isCropMode) {
@@ -175,6 +193,9 @@ class _EditorScreenState extends State<EditorScreen>
     }
     if (tool != EditorTool.relight && _isRelightMode) {
       _exitRelightMode();
+    }
+    if (tool != EditorTool.reframe && _isReframeMode) {
+      _exitReframeMode();
     }
 
     switch (tool) {
@@ -185,7 +206,7 @@ class _EditorScreenState extends State<EditorScreen>
         _enterRelightMode();
         break;
       case EditorTool.reframe:
-        // TODO: Implement reframe
+        _enterReframeMode();
         break;
       case EditorTool.filters:
         // TODO: Implement filters
@@ -204,6 +225,13 @@ class _EditorScreenState extends State<EditorScreen>
     setState(() {
       _isRelightMode = false;
       _relightControlPanelBuilder = null; // Clear builder when exiting
+    });
+  }
+
+  void _exitReframeMode() {
+    setState(() {
+      _isReframeMode = false;
+      _reframeControlPanelBuilder = null; // Clear builder when exiting
     });
   }
 
@@ -255,6 +283,29 @@ class _EditorScreenState extends State<EditorScreen>
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Adjustments applied')));
+  }
+
+  void _onReframeApplied(File reframedFile) {
+    // Add to history with metadata
+    _historyManager.addEntry(
+      EditHistoryEntry(
+        imageFile: reframedFile,
+        type: EditType.reframe,
+        metadata: {
+          'filename': reframedFile.path.split('/').last,
+          'size': reframedFile.lengthSync(),
+        },
+      ),
+    );
+
+    setState(() {
+      _currentPhotoFile = reframedFile;
+      _isReframeMode = false;
+      _isProcessing = false;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Reframe applied')));
   }
 
   Future<void> _savePhoto() async {
@@ -349,6 +400,26 @@ class _EditorScreenState extends State<EditorScreen>
                   : 0.0,
               child: _relightControlPanelBuilder != null
                   ? _relightControlPanelBuilder!()
+                  : const SizedBox.shrink(),
+            ),
+          ),
+
+          // Reframe controls panel (slides up from behind bottom bar)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            left: 12,
+            right: 12,
+            bottom: _isReframeMode && _reframeControlPanelBuilder != null
+                ? 88
+                : -200,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _isReframeMode && _reframeControlPanelBuilder != null
+                  ? 1.0
+                  : 0.0,
+              child: _reframeControlPanelBuilder != null
+                  ? _reframeControlPanelBuilder!()
                   : const SizedBox.shrink(),
             ),
           ),
@@ -487,6 +558,23 @@ class _EditorScreenState extends State<EditorScreen>
                 onControlPanelReady: (builder) {
                   setState(() {
                     _relightControlPanelBuilder = builder;
+                  });
+                },
+                onShowMessage: (message, isSuccess) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(message)));
+                },
+              )
+            : _isReframeMode
+            ? ReframeEditorWidget(
+                key: const ValueKey('reframe-mode'),
+                imageFile: _currentPhotoFile!,
+                onCancel: _exitReframeMode,
+                onApply: _onReframeApplied,
+                onControlPanelReady: (builder) {
+                  setState(() {
+                    _reframeControlPanelBuilder = builder;
                   });
                 },
                 onShowMessage: (message, isSuccess) {
