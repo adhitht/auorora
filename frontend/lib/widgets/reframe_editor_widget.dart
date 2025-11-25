@@ -1,16 +1,18 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:apex/widgets/glass_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:image/image.dart' as img;
 
 import '../theme/liquid_glass_theme.dart';
+import '../services/segmentation_service.dart';
 import '../services/pose_detection_service.dart';
 import '../models/pose_landmark.dart';
 import 'pose_visualization_overlay.dart';
+import 'segmented_cutout_view.dart';
 
 class ReframeEditorWidget extends StatefulWidget {
   final File imageFile;
@@ -35,17 +37,24 @@ class ReframeEditorWidget extends StatefulWidget {
 class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   bool _isProcessing = false;
   bool _isPoseDetecting = false;
+  bool _isSegmentationRunning = false;
   bool _showPoseLandmarks = false;
-  PoseDetectionResult? _poseResult;
+  bool _showSegmentation = false;
   Size? _imageSize;
 
+  PoseDetectionResult? _poseResult;
+  CutoutResult? _cutoutResult;
+  Offset _cutoutPosition = Offset.zero;
+
   final PoseDetectionService _poseService = PoseDetectionService();
+  final SegmentationService _segmentationService = SegmentationService();
   bool _isPoseServiceInitialized = false;
+  bool _isSegmentationServiceInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _initializePoseService();
+    _initializeServices();
     _loadImageSize();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -53,7 +62,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     });
   }
 
-  Future<void> _initializePoseService() async {
+  Future<void> _initializeServices() async {
     try {
       await _poseService.initialize();
       if (mounted) {
@@ -63,33 +72,41 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       }
     } catch (e) {
       print('Failed to initialize pose service: $e');
+    }
+
+    try {
+      await _segmentationService.initialize();
       if (mounted) {
-        widget.onShowMessage?.call(
-          'Pose detection not available: Model file missing',
-          false,
-        );
+        setState(() {
+          _isSegmentationServiceInitialized = true;
+        });
       }
+    } catch (e) {
+      print('Failed to initialize segmentation service: $e');
     }
   }
 
   Future<void> _loadImageSize() async {
     final bytes = await widget.imageFile.readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    final image = frame.image;
+    final image = img.decodeImage(bytes);
 
-    if (mounted) {
-      setState(() {
-        _imageSize = Size(image.width.toDouble(), image.height.toDouble());
-      });
+    if (image != null) {
+      final oriented = img.bakeOrientation(image);
+      if (mounted) {
+        setState(() {
+          _imageSize = Size(
+            oriented.width.toDouble(),
+            oriented.height.toDouble(),
+          );
+        });
+      }
     }
-
-    image.dispose();
   }
 
   @override
   void dispose() {
     _poseService.dispose();
+    _segmentationService.dispose();
     super.dispose();
   }
 
@@ -112,11 +129,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
         if (result == null) {
           widget.onShowMessage?.call('No pose detected in image', false);
-        } else {
-          // widget.onShowMessage?.call(
-          //   'Pose detected with ${(result.confidence * 100).toStringAsFixed(1)}% confidence',
-          //   true,
-          // );
         }
       }
     } catch (e) {
@@ -132,6 +144,51 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   void _togglePoseVisibility() {
     setState(() {
       _showPoseLandmarks = !_showPoseLandmarks;
+    });
+  }
+
+  Future<void> _performSegmentation() async {
+    if (_isSegmentationRunning || !_isSegmentationServiceInitialized) return;
+
+    setState(() {
+      _isSegmentationRunning = true;
+      _cutoutResult = null;
+    });
+
+    try {
+      await _segmentationService.encodeImage(widget.imageFile);
+      final cutout = await _segmentationService.createCutout(widget.imageFile);
+
+      if (mounted) {
+        setState(() {
+          _isSegmentationRunning = false;
+          _showSegmentation = true;
+          _cutoutResult = cutout;
+          _cutoutPosition = Offset.zero;
+        });
+
+        if (cutout != null) {
+          widget.onShowMessage?.call(
+            'Person segmented! Drag to reposition.',
+            true,
+          );
+        } else {
+          widget.onShowMessage?.call('No person detected.', false);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSegmentationRunning = false;
+        });
+        widget.onShowMessage?.call('Segmentation failed: $e', false);
+      }
+    }
+  }
+
+  void _toggleSegmentationVisibility() {
+    setState(() {
+      _showSegmentation = !_showSegmentation;
     });
   }
 
@@ -169,7 +226,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       children: [
         _buildReframeWidget(),
 
-        if (_isProcessing || _isPoseDetecting)
+        if (_isProcessing || _isSegmentationRunning || _isPoseDetecting)
           Positioned.fill(
             child: Container(
               color: Colors.black.withValues(alpha: 0.45),
@@ -182,7 +239,11 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      _isPoseDetecting ? 'Detecting pose...' : 'Processing...',
+                      _isSegmentationRunning
+                          ? 'Segmenting...'
+                          : _isPoseDetecting
+                          ? 'Detecting pose...'
+                          : 'Processing...',
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                   ],
@@ -199,19 +260,81 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Hero(
         tag: 'photo-editing',
-        child: Stack(
-          children: [
-            Image.file(widget.imageFile, fit: BoxFit.contain),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            double imageDisplayWidth = 0;
+            double imageDisplayHeight = 0;
+            double offsetX = 0;
+            double offsetY = 0;
 
-            if (_showPoseLandmarks && _poseResult != null && _imageSize != null)
-              Positioned.fill(
-                child: PoseVisualizationOverlay(
-                  poseResult: _poseResult,
-                  imageSize: _imageSize!,
-                  showConnections: true,
-                ),
-              ),
-          ],
+            if (_imageSize != null) {
+              final double scaleX = constraints.maxWidth / _imageSize!.width;
+              final double scaleY = constraints.maxHeight / _imageSize!.height;
+              final double scale = scaleX < scaleY ? scaleX : scaleY;
+
+              imageDisplayWidth = _imageSize!.width * scale;
+              imageDisplayHeight = _imageSize!.height * scale;
+
+              offsetX = (constraints.maxWidth - imageDisplayWidth) / 2;
+              offsetY = (constraints.maxHeight - imageDisplayHeight) / 2;
+            }
+
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Image.file(widget.imageFile, fit: BoxFit.contain),
+
+                // Pose overlay
+                if (_showPoseLandmarks &&
+                    _poseResult != null &&
+                    _imageSize != null)
+                  Positioned(
+                    left: offsetX,
+                    top: offsetY,
+                    width: imageDisplayWidth,
+                    height: imageDisplayHeight,
+                    child: PoseVisualizationOverlay(
+                      poseResult: _poseResult,
+                      imageSize: _imageSize!,
+                      showConnections: true,
+                    ),
+                  ),
+
+                // Segmentation cutout
+                if (_showSegmentation &&
+                    _cutoutResult != null &&
+                    _imageSize != null)
+                  Positioned(
+                    left:
+                        offsetX +
+                        (_cutoutResult!.x *
+                            (imageDisplayWidth / _imageSize!.width)) +
+                        _cutoutPosition.dx,
+                    top:
+                        offsetY +
+                        (_cutoutResult!.y *
+                            (imageDisplayHeight / _imageSize!.height)) +
+                        _cutoutPosition.dy,
+                    width:
+                        _cutoutResult!.width *
+                        (imageDisplayWidth / _imageSize!.width),
+                    height:
+                        _cutoutResult!.height *
+                        (imageDisplayHeight / _imageSize!.height),
+                    child: GestureDetector(
+                      onPanUpdate: (details) {
+                        setState(() {
+                          _cutoutPosition += details.delta;
+                        });
+                      },
+                      child: SegmentedCutoutView(
+                        imageBytes: _cutoutResult!.imageBytes,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -228,6 +351,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       ),
       child: Row(
         children: [
+          // Pose detection button
           GlassButton(
             onTap: _poseResult == null ? _detectPose : _togglePoseVisibility,
             child: Icon(
@@ -235,6 +359,23 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                   ? CupertinoIcons.person_crop_circle_fill
                   : CupertinoIcons.person_crop_circle,
               color: _showPoseLandmarks
+                  ? LiquidGlassTheme.primary
+                  : Colors.white,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Segmentation button
+          GlassButton(
+            onTap: _cutoutResult == null
+                ? _performSegmentation
+                : _toggleSegmentationVisibility,
+            child: Icon(
+              _showSegmentation
+                  ? CupertinoIcons.person_crop_rectangle_fill
+                  : CupertinoIcons.person_crop_rectangle,
+              color: _showSegmentation
                   ? LiquidGlassTheme.primary
                   : Colors.white,
             ),
