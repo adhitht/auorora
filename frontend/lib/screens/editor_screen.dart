@@ -561,9 +561,12 @@ class _EditorScreenState extends State<EditorScreen>
                   });
                 },
                 onShowMessage: (message, isSuccess) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(message)));
+                  if (!mounted) return;
+                  try {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(message)));
+                  } catch (_) {}
                 },
               )
             : _isReframeMode
@@ -578,9 +581,12 @@ class _EditorScreenState extends State<EditorScreen>
                   });
                 },
                 onShowMessage: (message, isSuccess) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(message)));
+                  if (!mounted) return;
+                  try {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(message)));
+                  } catch (_) {}
                 },
               )
             : Hero(

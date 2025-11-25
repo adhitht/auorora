@@ -38,6 +38,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   bool _isProcessing = false;
   bool _isPoseDetecting = false;
   bool _isSegmentationRunning = false;
+  bool _isSegmentationMode = false; // Added mode flag
   bool _showPoseLandmarks = false;
   bool _showSegmentation = false;
   Size? _imageSize;
@@ -153,35 +154,67 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     setState(() {
       _isSegmentationRunning = true;
       _cutoutResult = null;
+      _isSegmentationMode = true;
     });
 
     try {
       await _segmentationService.encodeImage(widget.imageFile);
-      final cutout = await _segmentationService.createCutout(widget.imageFile);
+      // Removed auto-cutout creation. Waiting for user tap.
 
       if (mounted) {
         setState(() {
           _isSegmentationRunning = false;
-          _showSegmentation = true;
-          _cutoutResult = cutout;
-          _cutoutPosition = Offset.zero;
+          _showSegmentation = false; // Hide until tap
         });
 
-        if (cutout != null) {
-          widget.onShowMessage?.call(
-            'Person segmented! Drag to reposition.',
-            true,
-          );
-        } else {
-          widget.onShowMessage?.call('No person detected.', false);
-        }
+        widget.onShowMessage?.call('Tap on an object to segment it.', true);
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isSegmentationRunning = false;
+          _isSegmentationMode = false;
         });
         widget.onShowMessage?.call('Segmentation failed: $e', false);
+      }
+    }
+  }
+
+  Future<void> _handleImageTap(double x, double y) async {
+    if (!_isSegmentationMode || _isProcessing) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final mask = await _segmentationService.getMaskForPoint(x, y);
+      if (mask != null) {
+        final cutout = await _segmentationService.createCutout(
+          widget.imageFile,
+        );
+
+        if (mounted) {
+          setState(() {
+            _cutoutResult = cutout;
+            _showSegmentation = true;
+            _cutoutPosition = Offset.zero;
+          });
+        }
+      } else {
+        if (mounted)
+          widget.onShowMessage?.call(
+            'No object found at this location.',
+            false,
+          );
+      }
+    } catch (e) {
+      if (mounted) widget.onShowMessage?.call('Selection failed: $e', false);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
       }
     }
   }
@@ -282,7 +315,39 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
             return Stack(
               alignment: Alignment.center,
               children: [
-                Image.file(widget.imageFile, fit: BoxFit.contain),
+                GestureDetector(
+                  onTapUp: (details) {
+                    if (_isSegmentationMode && _imageSize != null) {
+                      // Calculate tap position relative to the image
+                      // The image is centered and scaled.
+
+                      // Calculate the rect where the image is drawn
+                      final double left = offsetX;
+                      final double top = offsetY;
+                      final double right = left + imageDisplayWidth;
+                      final double bottom = top + imageDisplayHeight;
+
+                      final localPos = details.localPosition;
+
+                      if (localPos.dx >= left &&
+                          localPos.dx <= right &&
+                          localPos.dy >= top &&
+                          localPos.dy <= bottom) {
+                        // Map to original image coordinates
+                        final double relativeX =
+                            (localPos.dx - left) / imageDisplayWidth;
+                        final double relativeY =
+                            (localPos.dy - top) / imageDisplayHeight;
+
+                        final double originalX = relativeX * _imageSize!.width;
+                        final double originalY = relativeY * _imageSize!.height;
+
+                        _handleImageTap(originalX, originalY);
+                      }
+                    }
+                  },
+                  child: Image.file(widget.imageFile, fit: BoxFit.contain),
+                ),
 
                 // Pose overlay
                 if (_showPoseLandmarks &&

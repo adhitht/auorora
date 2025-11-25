@@ -74,7 +74,7 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
                     imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                     child: Image.memory(
                       widget.imageBytes,
-                      color: Colors.purpleAccent.withOpacity(0.8),
+                      color: Colors.white.withOpacity(0.2),
                       colorBlendMode: BlendMode.srcIn,
                       fit: BoxFit.fill,
                     ),
@@ -85,7 +85,7 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
                 Image.memory(
                   widget.imageBytes,
                   fit: BoxFit.fill,
-                  color: Colors.purpleAccent.withOpacity(0.15),
+                  color: Colors.white.withOpacity(0.15),
                   colorBlendMode: BlendMode.srcATop,
                 ),
 
@@ -94,9 +94,7 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
                     settings: LiquidGlassSettings(
                       thickness: 5,
                       blur: 0.0,
-                      glassColor: Colors.white.withOpacity(
-                        0.02,
-                      ),
+                      glassColor: Colors.white.withOpacity(0.02),
                       lightIntensity: _shimmerAnimation.value,
                       saturation: 1.0,
                     ),

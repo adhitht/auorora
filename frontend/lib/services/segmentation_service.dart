@@ -143,8 +143,9 @@ class SegmentationService {
         'MagicTouch: Image prepared in ${endTime.difference(startTime).inMilliseconds}ms',
       );
 
-      debugPrint('MagicTouch: Auto-segmenting center object...');
-      await getMaskForPoint(_originalWidth / 2.0, _originalHeight / 2.0);
+      // Auto-segmentation removed to allow user tap selection
+      // debugPrint('MagicTouch: Auto-segmenting center object...');
+      // await getMaskForPoint(_originalWidth / 2.0, _originalHeight / 2.0);
     } catch (e) {
       debugPrint('Error encoding image: $e');
       rethrow;
@@ -178,8 +179,7 @@ class SegmentationService {
             'MagicTouch: Creating 4-channel input (RGB + Interaction)',
           );
           inputs.add(_create4ChannelInput(_cachedRgbInput!, px, py));
-        }
-        else if (shape.length == 4 &&
+        } else if (shape.length == 4 &&
             shape[1] == _inputSize &&
             shape[2] == _inputSize &&
             shape[3] == 3) {
