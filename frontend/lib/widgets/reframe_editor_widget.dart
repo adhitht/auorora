@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:apex/widgets/glass_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
@@ -38,7 +39,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   bool _isProcessing = false;
   bool _isPoseDetecting = false;
   bool _isSegmentationRunning = false;
-  bool _isSegmentationMode = false; // Added mode flag
   bool _showPoseLandmarks = false;
   bool _showSegmentation = false;
   Size? _imageSize;
@@ -50,7 +50,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   final PoseDetectionService _poseService = PoseDetectionService();
   final SegmentationService _segmentationService = SegmentationService();
   bool _isPoseServiceInitialized = false;
-  bool _isSegmentationServiceInitialized = false;
 
   @override
   void initState() {
@@ -78,8 +77,8 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     try {
       await _segmentationService.initialize();
       if (mounted) {
-        setState(() {
-          _isSegmentationServiceInitialized = true;
+        _segmentationService.encodeImage(widget.imageFile).catchError((e) {
+          print('Background encoding failed: $e');
         });
       }
     } catch (e) {
@@ -148,46 +147,18 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     });
   }
 
-  Future<void> _performSegmentation() async {
-    if (_isSegmentationRunning || !_isSegmentationServiceInitialized) return;
-
-    setState(() {
-      _isSegmentationRunning = true;
-      _cutoutResult = null;
-      _isSegmentationMode = true;
-    });
-
-    try {
-      await _segmentationService.encodeImage(widget.imageFile);
-      // Removed auto-cutout creation. Waiting for user tap.
-
-      if (mounted) {
-        setState(() {
-          _isSegmentationRunning = false;
-          _showSegmentation = false; // Hide until tap
-        });
-
-        widget.onShowMessage?.call('Tap on an object to segment it.', true);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isSegmentationRunning = false;
-          _isSegmentationMode = false;
-        });
-        widget.onShowMessage?.call('Segmentation failed: $e', false);
-      }
-    }
-  }
-
-  Future<void> _handleImageTap(double x, double y) async {
-    if (!_isSegmentationMode || _isProcessing) return;
+  Future<void> _handleSegmentationTrigger(double x, double y) async {
+    if (_isProcessing) return;
 
     setState(() {
       _isProcessing = true;
     });
 
     try {
+      if (!_segmentationService.isEncoded) {
+        await _segmentationService.encodeImage(widget.imageFile);
+      }
+
       final mask = await _segmentationService.getMaskForPoint(x, y);
       if (mask != null) {
         final cutout = await _segmentationService.createCutout(
@@ -217,12 +188,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         });
       }
     }
-  }
-
-  void _toggleSegmentationVisibility() {
-    setState(() {
-      _showSegmentation = !_showSegmentation;
-    });
   }
 
   Future<void> _applyReframe() async {
@@ -316,12 +281,8 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
               alignment: Alignment.center,
               children: [
                 GestureDetector(
-                  onTapUp: (details) {
-                    if (_isSegmentationMode && _imageSize != null) {
-                      // Calculate tap position relative to the image
-                      // The image is centered and scaled.
-
-                      // Calculate the rect where the image is drawn
+                  onLongPressStart: (details) {
+                    if (_imageSize != null) {
                       final double left = offsetX;
                       final double top = offsetY;
                       final double right = left + imageDisplayWidth;
@@ -341,15 +302,15 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
                         final double originalX = relativeX * _imageSize!.width;
                         final double originalY = relativeY * _imageSize!.height;
-
-                        _handleImageTap(originalX, originalY);
+                        
+                        HapticFeedback.mediumImpact();
+                        _handleSegmentationTrigger(originalX, originalY);
                       }
                     }
                   },
                   child: Image.file(widget.imageFile, fit: BoxFit.contain),
                 ),
 
-                // Pose overlay
                 if (_showPoseLandmarks &&
                     _poseResult != null &&
                     _imageSize != null)
@@ -431,11 +392,10 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
           const SizedBox(width: 12),
 
-          // Segmentation button
+          // Segmentation button removed as per request
+          /*
           GlassButton(
-            onTap: _cutoutResult == null
-                ? _performSegmentation
-                : _toggleSegmentationVisibility,
+            onTap: _toggleSegmentationVisibility,
             child: Icon(
               _showSegmentation
                   ? CupertinoIcons.person_crop_rectangle_fill
@@ -445,7 +405,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                   : Colors.white,
             ),
           ),
-
+          */
           const Spacer(),
 
           GlassButton(onTap: _applyReframe, child: const Icon(Icons.check)),
