@@ -11,6 +11,20 @@ class PoseLandmark {
     required this.visibility,
   });
 
+  PoseLandmark copyWith({
+    double? x,
+    double? y,
+    double? z,
+    double? visibility,
+  }) {
+    return PoseLandmark(
+      x: x ?? this.x,
+      y: y ?? this.y,
+      z: z ?? this.z,
+      visibility: visibility ?? this.visibility,
+    );
+  }
+
   @override
   String toString() {
     return 'PoseLandmark(x: $x, y: $y, z: $z, visibility: $visibility)';
@@ -53,4 +67,43 @@ enum PoseLandmarkType {
 
   final int landmarkIndex;
   const PoseLandmarkType(this.landmarkIndex);
+
+  String get displayName {
+    switch (this) {
+      case PoseLandmarkType.nose:
+        return 'Nose';
+      case PoseLandmarkType.leftEye:
+        return 'Left Eye';
+      case PoseLandmarkType.rightEye:
+        return 'Right Eye';
+      case PoseLandmarkType.leftEar:
+        return 'Left Ear';
+      case PoseLandmarkType.rightEar:
+        return 'Right Ear';
+      case PoseLandmarkType.leftShoulder:
+        return 'Left Shoulder';
+      case PoseLandmarkType.rightShoulder:
+        return 'Right Shoulder';
+      case PoseLandmarkType.leftElbow:
+        return 'Left Elbow';
+      case PoseLandmarkType.rightElbow:
+        return 'Right Elbow';
+      case PoseLandmarkType.leftWrist:
+        return 'Left Wrist';
+      case PoseLandmarkType.rightWrist:
+        return 'Right Wrist';
+      case PoseLandmarkType.leftHip:
+        return 'Left Hip';
+      case PoseLandmarkType.rightHip:
+        return 'Right Hip';
+      case PoseLandmarkType.leftKnee:
+        return 'Left Knee';
+      case PoseLandmarkType.rightKnee:
+        return 'Right Knee';
+      case PoseLandmarkType.leftAnkle:
+        return 'Left Ankle';
+      case PoseLandmarkType.rightAnkle:
+        return 'Right Ankle';
+    }
+  }
 }

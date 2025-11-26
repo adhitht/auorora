@@ -218,6 +218,23 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     }
   }
 
+  void _handleLandmarkMove(int index, Offset newPosition) {
+    if (_poseResult == null) return;
+
+    setState(() {
+      final landmarks = List<PoseLandmark>.from(_poseResult!.landmarks);
+      landmarks[index] = landmarks[index].copyWith(
+        x: newPosition.dx,
+        y: newPosition.dy,
+      );
+
+      _poseResult = PoseDetectionResult(
+        landmarks: landmarks,
+        confidence: _poseResult!.confidence,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -321,8 +338,9 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                     height: imageDisplayHeight,
                     child: PoseVisualizationOverlay(
                       poseResult: _poseResult,
-                      imageSize: _imageSize!,
+                      imageSize: Size(imageDisplayWidth, imageDisplayHeight),
                       showConnections: true,
+                      onLandmarkMoved: _handleLandmarkMove,
                     ),
                   ),
 

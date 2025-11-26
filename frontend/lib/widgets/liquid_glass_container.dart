@@ -1,52 +1,41 @@
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../theme/liquid_glass_theme.dart';
 
-
 class LiquidGlassContainer extends StatelessWidget {
-  
   final Widget child;
+  final EdgeInsetsGeometry? padding;
 
-  const LiquidGlassContainer({required this.child});
+  const LiquidGlassContainer({
+    super.key,
+    required this.child,
+    this.padding,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(LiquidGlassTheme.borderRadiusLarge),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 25,
-            offset: const Offset(0, 10),
-          ),
-        ],
+    return LiquidGlassLayer(
+      settings: const LiquidGlassSettings(
+        thickness: 25,
+        blur: 20,
+        glassColor: LiquidGlassTheme.glassDark,
+        lightIntensity: 0.15,
+        saturation: 1,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(LiquidGlassTheme.borderRadiusLarge),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+      child: LiquidStretch(
+        stretch: 0.2, // Subtle stretch
+        interactionScale: 1.02,
+        child: LiquidGlass(
+          shape: LiquidRoundedSuperellipse(borderRadius: 24),
           child: Container(
+            padding: padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(
-                LiquidGlassTheme.borderRadiusLarge,
-              ),
+              color: Colors.black.withValues(alpha: 0.1),
               border: Border.all(
-                color: Colors.white.withOpacity(0.5),
-                width: 1.2,
+                color: Colors.white.withValues(alpha: 0.2),
+                width: 1,
               ),
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withOpacity(0.45),
-                  Colors.white.withOpacity(0.25),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: LiquidGlassTheme.spacingSmall,
+              borderRadius: BorderRadius.circular(24),
             ),
             child: child,
           ),

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/rendering.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'dart:ui' as ui;
@@ -46,21 +47,53 @@ class PoseDetectionService {
       final frame = await codec.getNextFrame();
       final image = frame.image;
 
-      final inputTensor = await _preprocessImage(image);
+      // Calculate letterbox details
+      final double targetSize = _inputSize.toDouble();
+      final double scale = (targetSize / image.width) < (targetSize / image.height)
+          ? (targetSize / image.width)
+          : (targetSize / image.height);
+      
+      final double newWidth = image.width * scale;
+      final double newHeight = image.height * scale;
+      final double dx = (targetSize - newWidth) / 2;
+      final double dy = (targetSize - newHeight) / 2;
+
+      debugPrint('PoseDetection: Image size: ${image.width}x${image.height}');
+      debugPrint('PoseDetection: Scale: $scale, Padding: $dx, $dy');
+
+      final inputTensor = await _preprocessImage(image, dx, dy, newWidth, newHeight);
 
       final output = _runInference(inputTensor);
 
-      final result = _parseOutput(output);
+      debugPrint('PoseDetection: Raw output first landmark: ${output[0][0]}');
+
+      final result = _parseOutput(
+        output,
+        dx,
+        dy,
+        scale,
+        image.width.toDouble(),
+        image.height.toDouble(),
+      );
+
+      debugPrint('PoseDetection: Parsed first landmark: ${result.landmarks[0]}');
 
       image.dispose();
       return result;
     } catch (e) {
+      debugPrint('Error detecting pose: $e');
       return null;
     }
   }
 
-  Future<List<List<List<List<int>>>>> _preprocessImage(ui.Image image) async {
-    final resized = await _resizeImage(image, _inputSize, _inputSize);
+  Future<List<List<List<List<int>>>>> _preprocessImage(
+    ui.Image image,
+    double dx,
+    double dy,
+    double newWidth,
+    double newHeight,
+  ) async {
+    final resized = await _resizeImage(image, dx, dy, newWidth, newHeight);
 
     final byteData = await resized.toByteData(
       format: ui.ImageByteFormat.rawRgba,
@@ -90,9 +123,21 @@ class PoseDetectionService {
     return input;
   }
 
-  Future<ui.Image> _resizeImage(ui.Image image, int width, int height) async {
+  Future<ui.Image> _resizeImage(
+    ui.Image image,
+    double dx,
+    double dy,
+    double newWidth,
+    double newHeight,
+  ) async {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
+
+    // Fill with gray background (neutral)
+    canvas.drawRect(
+      ui.Rect.fromLTWH(0, 0, _inputSize.toDouble(), _inputSize.toDouble()),
+      ui.Paint()..color = const ui.Color(0xFF808080),
+    );
 
     final paint = ui.Paint()..filterQuality = ui.FilterQuality.high;
 
@@ -102,12 +147,12 @@ class PoseDetectionService {
       image.width.toDouble(),
       image.height.toDouble(),
     );
-    final dstRect = ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble());
+    final dstRect = ui.Rect.fromLTWH(dx, dy, newWidth, newHeight);
 
     canvas.drawImageRect(image, srcRect, dstRect, paint);
 
     final picture = recorder.endRecording();
-    final resized = await picture.toImage(width, height);
+    final resized = await picture.toImage(_inputSize, _inputSize);
     picture.dispose();
 
     return resized;
@@ -127,20 +172,43 @@ class PoseDetectionService {
     return output[0];
   }
 
-  PoseDetectionResult _parseOutput(List<List<List<double>>> output) {
+  PoseDetectionResult _parseOutput(
+    List<List<List<double>>> output,
+    double paddingX,
+    double paddingY,
+    double scale,
+    double originalWidth,
+    double originalHeight,
+  ) {
     final landmarks = <PoseLandmark>[];
     double totalConfidence = 0.0;
 
     for (var i = 0; i < output[0].length; i++) {
       final landmarkData = output[0][i];
+      
+      final yNorm = landmarkData[0];
+      final xNorm = landmarkData[1];
+      final score = landmarkData[2];
+
+      final point = calculateOriginalCoordinate(
+        xNorm,
+        yNorm,
+        paddingX,
+        paddingY,
+        scale,
+        originalWidth,
+        originalHeight,
+        _inputSize,
+      );
+
       final landmark = PoseLandmark(
-        x: landmarkData[1],
-        y: landmarkData[0],
+        x: point.x,
+        y: point.y,
         z: 0.0,
-        visibility: landmarkData[2],
+        visibility: score,
       );
       landmarks.add(landmark);
-      totalConfidence += landmarkData[2];
+      totalConfidence += score;
     }
 
     while (landmarks.length < 33) {
@@ -151,6 +219,36 @@ class PoseDetectionService {
 
     return PoseDetectionResult(landmarks: landmarks, confidence: confidence);
   }
+
+  static Point<double> calculateOriginalCoordinate(
+    double xNorm,
+    double yNorm,
+    double paddingX,
+    double paddingY,
+    double scale,
+    double originalWidth,
+    double originalHeight,
+    int inputSize,
+  ) {
+    // Convert to tensor pixel coordinates
+    final yTensor = yNorm * inputSize;
+    final xTensor = xNorm * inputSize;
+
+    // Remove padding
+    final yScaled = yTensor - paddingY;
+    final xScaled = xTensor - paddingX;
+
+    // Scale back to original image size
+    final yOriginal = yScaled / scale;
+    final xOriginal = xScaled / scale;
+
+    // Normalize to original image dimensions [0, 1]
+    final xFinal = xOriginal / originalWidth;
+    final yFinal = yOriginal / originalHeight;
+
+    return Point(xFinal, yFinal);
+  }
+
 
   void dispose() {
     _interpreter?.close();
