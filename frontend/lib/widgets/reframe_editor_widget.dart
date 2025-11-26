@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui'; // For ImageFilter
 
 import 'package:apex/widgets/glass_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -15,6 +16,7 @@ import '../services/pose_detection_service.dart';
 import '../models/pose_landmark.dart';
 import 'pose_visualization_overlay.dart';
 import 'segmented_cutout_view.dart';
+import 'loading_indicator.dart';
 
 class ReframeEditorWidget extends StatefulWidget {
   final File imageFile;
@@ -310,25 +312,14 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
         if (_isProcessing || _isSegmentationRunning || _isPoseDetecting)
           Positioned.fill(
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.45),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(
-                      color: LiquidGlassTheme.primary,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      _isSegmentationRunning
-                          ? 'Segmenting...'
-                          : _isPoseDetecting
-                          ? 'Detecting pose...'
-                          : 'Processing...',
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  color: Colors.black.withOpacity(0.3),
+                  child: const Center(
+                    child: LoadingIndicator(size: 60),
+                  ),
                 ),
               ),
             ),
