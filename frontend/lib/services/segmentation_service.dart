@@ -361,11 +361,13 @@ class SegmentationService {
               val = out4d[0][0][y][x];
             }
 
-            if (val > 0.5) {
-              mask[y * w + x] = 255;
-              pixelCount++;
-            } else {
+            // Soft masking: Map probability 0.0-1.0 to 0-255
+            // We still clip very low values to keep the background clean
+            if (val < 0.1) {
               mask[y * w + x] = 0;
+            } else {
+              mask[y * w + x] = (val * 255).toInt().clamp(0, 255);
+              pixelCount++;
             }
           }
         }
@@ -472,8 +474,10 @@ class SegmentationService {
               _cachedMask![index] > 0;
 
           if (isPerson) {
+            final alpha = _cachedMask![index];
             final pixel = oriented.getPixel(srcX, srcY);
-            cutout.setPixel(x, y, pixel);
+            // Apply soft mask alpha
+            cutout.setPixelRgba(x, y, pixel.r, pixel.g, pixel.b, alpha);
           } else {
             cutout.setPixelRgba(x, y, 0, 0, 0, 0);
           }

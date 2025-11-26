@@ -21,6 +21,9 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
   late AnimationController _shimmerController;
   late Animation<double> _shimmerAnimation;
 
+  late AnimationController _flowController;
+  late Animation<double> _flowAnimation;
+
   @override
   void initState() {
     super.initState();
@@ -49,62 +52,114 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
     _shimmerAnimation = Tween<double>(begin: 0.2, end: 0.6).animate(
       CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
     );
+
+    _flowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700), // Much faster
+    );
+
+    _flowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _flowController, curve: Curves.easeOutQuart),
+    );
+
+    // Start flow after a slight delay to let the pop-in finish
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) _flowController.forward();
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _shimmerController.dispose();
+    _flowController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scaleAnimation,
-      child: FadeTransition(
-        opacity: _opacityAnimation,
-        child: AnimatedBuilder(
-          animation: _shimmerAnimation,
-          builder: (context, child) {
-            return Stack(
-              children: [
+    // Removed ScaleTransition to keep the cutout exactly in place
+    return FadeTransition(
+      opacity: _opacityAnimation,
+      child: AnimatedBuilder(
+        animation: Listenable.merge([_shimmerAnimation, _flowAnimation]),
+        builder: (context, child) {
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: Image.memory(
+                    widget.imageBytes,
+                    color: Colors.white.withOpacity(0.2),
+                    colorBlendMode: BlendMode.srcIn,
+                    fit: BoxFit.fill,
+                  ),
+                ),
+              ),
+
+              // 2. The Image itself
+              Image.memory(
+                widget.imageBytes,
+                fit: BoxFit.fill,
+                color: Colors.white.withOpacity(0.15),
+                colorBlendMode: BlendMode.srcATop,
+              ),
+
+              // 3. Scanning Light Effect
+              // Only show while animating to prevent any residual artifacts
+              if (!_flowController.isCompleted)
                 Positioned.fill(
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                    child: Image.memory(
-                      widget.imageBytes,
-                      color: Colors.white.withOpacity(0.2),
-                      colorBlendMode: BlendMode.srcIn,
-                      fit: BoxFit.fill,
+                  child: Opacity(
+                    // Fade in and out based on progress (Bell curve-ish)
+                    // 0.0 -> 0.0, 0.5 -> 1.0, 1.0 -> 0.0
+                    opacity: (1.0 - (2 * _flowAnimation.value - 1.0).abs())
+                        .clamp(0.0, 1.0),
+                    child: ShaderMask(
+                      shaderCallback: (rect) {
+                        return LinearGradient(
+                          begin: Alignment(
+                            -2.5 + (_flowAnimation.value * 5.0),
+                            -0.5,
+                          ),
+                          end: Alignment(
+                            -1.5 + (_flowAnimation.value * 5.0),
+                            0.5,
+                          ),
+                          colors: [
+                            Colors.transparent,
+                            Colors.white.withOpacity(0.1), // Faint glow
+                            Colors.white.withOpacity(0.5), // Sharp highlight
+                            Colors.white.withOpacity(0.1), // Faint glow
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.45, 0.5, 0.55, 1.0],
+                        ).createShader(rect);
+                      },
+                      blendMode: BlendMode.srcATop,
+                      child: Image.memory(
+                        widget.imageBytes,
+                        fit: BoxFit.fill,
+                      ),
                     ),
                   ),
                 ),
 
-                // 2. The Image itself
-                Image.memory(
-                  widget.imageBytes,
-                  fit: BoxFit.fill,
-                  color: Colors.white.withOpacity(0.15),
-                  colorBlendMode: BlendMode.srcATop,
-                ),
-
-                Positioned.fill(
-                  child: LiquidGlassLayer(
-                    settings: LiquidGlassSettings(
-                      thickness: 5,
-                      blur: 0.0,
-                      glassColor: Colors.white.withOpacity(0.02),
-                      lightIntensity: _shimmerAnimation.value,
-                      saturation: 1.0,
-                    ),
-                    child: Container(),
+              Positioned.fill(
+                child: LiquidGlassLayer(
+                  settings: LiquidGlassSettings(
+                    thickness: 5,
+                    blur: 0.0,
+                    glassColor: Colors.white.withOpacity(0.02),
+                    lightIntensity: _shimmerAnimation.value,
+                    saturation: 1.0,
                   ),
+                  child: Container(),
                 ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

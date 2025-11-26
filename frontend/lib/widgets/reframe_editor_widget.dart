@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:apex/widgets/glass_button.dart';
@@ -46,6 +47,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   PoseDetectionResult? _poseResult;
   CutoutResult? _cutoutResult;
   Offset _cutoutPosition = Offset.zero;
+  double _lastScale = 1.0;
 
   final PoseDetectionService _poseService = PoseDetectionService();
   final SegmentationService _segmentationService = SegmentationService();
@@ -87,20 +89,32 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   }
 
   Future<void> _loadImageSize() async {
-    final bytes = await widget.imageFile.readAsBytes();
-    final image = img.decodeImage(bytes);
+    final ImageProvider provider = FileImage(widget.imageFile);
+    final ImageStream stream = provider.resolve(ImageConfiguration.empty);
+    
+    final completer = Completer<void>();
+    
+    final listener = ImageStreamListener(
+      (ImageInfo info, bool synchronousCall) {
+        if (mounted) {
+          setState(() {
+            _imageSize = Size(
+              info.image.width.toDouble(),
+              info.image.height.toDouble(),
+            );
+          });
+        }
+        completer.complete();
+      },
+      onError: (dynamic exception, StackTrace? stackTrace) {
+        print('Failed to load image size: $exception');
+        completer.complete();
+      },
+    );
 
-    if (image != null) {
-      final oriented = img.bakeOrientation(image);
-      if (mounted) {
-        setState(() {
-          _imageSize = Size(
-            oriented.width.toDouble(),
-            oriented.height.toDouble(),
-          );
-        });
-      }
-    }
+    stream.addListener(listener);
+    await completer.future;
+    stream.removeListener(listener);
   }
 
   @override
@@ -159,6 +173,19 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         await _segmentationService.encodeImage(widget.imageFile);
       }
 
+      // Sync image size with the service to ensure coordinate consistency
+      // The cutout coordinates are in the service's coordinate space
+      if (mounted &&
+          _segmentationService.originalWidth > 0 &&
+          _segmentationService.originalHeight > 0) {
+        setState(() {
+          _imageSize = Size(
+            _segmentationService.originalWidth.toDouble(),
+            _segmentationService.originalHeight.toDouble(),
+          );
+        });
+      }
+
       final mask = await _segmentationService.getMaskForPoint(x, y);
       if (mask != null) {
         final cutout = await _segmentationService.createCutout(
@@ -203,6 +230,45 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         '${dir.path}/reframe_${DateTime.now().millisecondsSinceEpoch}.png',
       );
 
+      // If we have a cutout, we need to composite it
+      if (_cutoutResult != null) {
+        final bytes = await widget.imageFile.readAsBytes();
+        var image = img.decodeImage(bytes);
+
+        if (image != null) {
+          image = img.bakeOrientation(image);
+          final cutoutImage = img.decodeImage(_cutoutResult!.imageBytes);
+
+          if (cutoutImage != null) {
+            // Calculate final position
+            // _cutoutPosition is in UI logical pixels
+            // We need to convert it to image pixels using _lastScale
+            final double offsetX = _cutoutPosition.dx / _lastScale;
+            final double offsetY = _cutoutPosition.dy / _lastScale;
+
+            final int targetX = (_cutoutResult!.x + offsetX).round();
+            final int targetY = (_cutoutResult!.y + offsetY).round();
+
+            // Composite the cutout onto the original image
+            img.compositeImage(
+              image,
+              cutoutImage,
+              dstX: targetX,
+              dstY: targetY,
+            );
+
+            // Encode and save
+            await newFile.writeAsBytes(img.encodePng(image));
+            
+            if (mounted) {
+              widget.onApply(newFile);
+            }
+            return;
+          }
+        }
+      }
+
+      // Fallback: just copy original if no editing happened or error
       await widget.imageFile.copy(newFile.path);
 
       if (mounted) {
@@ -282,11 +348,23 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
             double imageDisplayHeight = 0;
             double offsetX = 0;
             double offsetY = 0;
+            double scale = 1.0;
 
             if (_imageSize != null) {
               final double scaleX = constraints.maxWidth / _imageSize!.width;
               final double scaleY = constraints.maxHeight / _imageSize!.height;
-              final double scale = scaleX < scaleY ? scaleX : scaleY;
+              scale = scaleX < scaleY ? scaleX : scaleY;
+              
+              // Update scale for composition logic
+              if (_lastScale != scale) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    setState(() {
+                      _lastScale = scale;
+                    });
+                  }
+                });
+              }
 
               imageDisplayWidth = _imageSize!.width * scale;
               imageDisplayHeight = _imageSize!.height * scale;
@@ -350,22 +428,10 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                     _cutoutResult != null &&
                     _imageSize != null)
                   Positioned(
-                    left:
-                        offsetX +
-                        (_cutoutResult!.x *
-                            (imageDisplayWidth / _imageSize!.width)) +
-                        _cutoutPosition.dx,
-                    top:
-                        offsetY +
-                        (_cutoutResult!.y *
-                            (imageDisplayHeight / _imageSize!.height)) +
-                        _cutoutPosition.dy,
-                    width:
-                        _cutoutResult!.width *
-                        (imageDisplayWidth / _imageSize!.width),
-                    height:
-                        _cutoutResult!.height *
-                        (imageDisplayHeight / _imageSize!.height),
+                    left: offsetX + (_cutoutResult!.x * scale) + _cutoutPosition.dx ,
+                    top: offsetY + (_cutoutResult!.y * scale) + _cutoutPosition.dy - 65,
+                    width: _cutoutResult!.width * scale,
+                    height: _cutoutResult!.height * scale,
                     child: GestureDetector(
                       onPanUpdate: (details) {
                         setState(() {
