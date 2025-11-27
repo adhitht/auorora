@@ -1,3 +1,4 @@
+import 'dart:math' as dart_math;
 import 'package:flutter/material.dart';
 import '../models/pose_landmark.dart';
 import 'liquid_glass_container.dart';
@@ -20,17 +21,76 @@ class PoseVisualizationOverlay extends StatefulWidget {
     this.onLandmarkMoved,
   });
 
+  static const List<List<PoseLandmarkType>> _connections = [
+    [PoseLandmarkType.nose, PoseLandmarkType.leftEye],
+    [PoseLandmarkType.leftEye, PoseLandmarkType.leftEar],
+    [PoseLandmarkType.nose, PoseLandmarkType.rightEye],
+    [PoseLandmarkType.rightEye, PoseLandmarkType.rightEar],
+
+    [PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder],
+    [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftHip],
+    [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightHip],
+    [PoseLandmarkType.leftHip, PoseLandmarkType.rightHip],
+
+    [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow],
+    [PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist],
+
+    [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow],
+    [PoseLandmarkType.rightElbow, PoseLandmarkType.rightWrist],
+
+    [PoseLandmarkType.leftHip, PoseLandmarkType.leftKnee],
+    [PoseLandmarkType.leftKnee, PoseLandmarkType.leftAnkle],
+
+    [PoseLandmarkType.rightHip, PoseLandmarkType.rightKnee],
+    [PoseLandmarkType.rightKnee, PoseLandmarkType.rightAnkle],
+  ];
+
   @override
-  State<PoseVisualizationOverlay> createState() => _PoseVisualizationOverlayState();
+  State<PoseVisualizationOverlay> createState() =>
+      _PoseVisualizationOverlayState();
 }
 
 class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
   int? _draggingIndex;
+  // Store the original landmarks to calculate baseline constraints
+  List<PoseLandmark>? _originalLandmarks;
+
+  @override
+  void initState() {
+    super.initState();
+    _captureOriginalLandmarks();
+  }
+
+  @override
+  void didUpdateWidget(PoseVisualizationOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update original landmarks if it's a new detection (ID changed)
+    if (widget.poseResult?.id != oldWidget.poseResult?.id) {
+      _captureOriginalLandmarks();
+    }
+  }
+
+  void _captureOriginalLandmarks() {
+    if (widget.poseResult != null) {
+      // Create a deep copy or just a list copy since PoseLandmark is immutable
+      _originalLandmarks = List<PoseLandmark>.from(
+        widget.poseResult!.landmarks,
+      );
+      debugPrint(
+        'PoseVisualization: Captured original landmarks for ID: ${widget.poseResult!.id}',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     if (widget.poseResult == null) {
       return const SizedBox.shrink();
+    }
+
+    // Fallback if not captured
+    if (_originalLandmarks == null && widget.poseResult != null) {
+      _captureOriginalLandmarks();
     }
 
     return Stack(
@@ -42,6 +102,7 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
             poseResult: widget.poseResult!,
             showConnections: widget.showConnections,
             connectionColor: widget.connectionColor,
+            connections: PoseVisualizationOverlay._connections,
           ),
         ),
 
@@ -53,29 +114,125 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
           if (landmark.visibility <= 0.3) return const SizedBox.shrink();
 
           // Center the touch target
-          final left = landmark.x * widget.imageSize.width - 24; // 48x48 touch area
+          final left =
+              landmark.x * widget.imageSize.width - 24; // 48x48 touch area
           final top = landmark.y * widget.imageSize.height - 24;
 
           return Positioned(
             left: left,
             top: top,
             child: GestureDetector(
-              behavior: HitTestBehavior.translucent, // Ensure touches are caught
+              behavior:
+                  HitTestBehavior.translucent, // Ensure touches are caught
               onPanStart: (_) {
                 setState(() {
                   _draggingIndex = index;
                 });
               },
               onPanUpdate: (details) {
-                if (widget.onLandmarkMoved != null) {
+                if (widget.onLandmarkMoved != null &&
+                    _originalLandmarks != null) {
                   // Add sensitivity multiplier (1.5x) to make movement feel faster
                   final sensitivity = 1.5;
-                  final newX = (left + 24 + (details.delta.dx * sensitivity)) / widget.imageSize.width;
-                  final newY = (top + 24 + (details.delta.dy * sensitivity)) / widget.imageSize.height;
-                  
-                  // Clamp to 0-1
-                  final clampedX = newX.clamp(0.0, 1.0);
-                  final clampedY = newY.clamp(0.0, 1.0);
+                  final deltaX =
+                      (details.delta.dx * sensitivity) / widget.imageSize.width;
+                  final deltaY =
+                      (details.delta.dy * sensitivity) /
+                      widget.imageSize.height;
+
+                  double proposedX = landmark.x + deltaX;
+                  double proposedY = landmark.y + deltaY;
+
+                  // Robust Constraint Solver
+                  // Instead of just projecting to the last constraint, we try to find a position
+                  // that satisfies ALL constraints.
+
+                  // We start with the proposed position.
+                  double currentX = proposedX;
+                  double currentY = proposedY;
+
+                  // Iteratively refine the position
+                  for (int i = 0; i < 5; i++) {
+                    // We need to check constraints against all connected neighbors of the CURRENT point.
+                    // Unlike before, we don't iterate _initialNeighborDistances directly because that now contains ALL connections.
+
+                    final currentLandmarkType = PoseLandmarkType.values
+                        .firstWhere(
+                          (e) => e.landmarkIndex == index,
+                          orElse: () => PoseLandmarkType.nose,
+                        );
+
+                    for (final connection
+                        in PoseVisualizationOverlay._connections) {
+                      PoseLandmarkType? neighborType;
+                      if (connection[0] == currentLandmarkType) {
+                        neighborType = connection[1];
+                      } else if (connection[1] == currentLandmarkType) {
+                        neighborType = connection[0];
+                      }
+
+                      if (neighborType != null) {
+                        final neighborIndex = neighborType.landmarkIndex;
+                        final neighbor =
+                            widget.poseResult!.landmarks[neighborIndex];
+
+                        // Calculate INITIAL distance from the ORIGINAL landmarks
+                        // This ensures the constraint is always relative to the original pose
+                        final originalSelf = _originalLandmarks![index];
+                        final originalNeighbor =
+                            _originalLandmarks![neighborIndex];
+
+                        final odx = originalSelf.x - originalNeighbor.x;
+                        final ody = originalSelf.y - originalNeighbor.y;
+                        final initialSqDist = odx * odx + ody * ody;
+
+                        final dx = currentX - neighbor.x;
+                        final dy = currentY - neighbor.y;
+                        final currentSqDist = dx * dx + dy * dy;
+
+                        // 5% tolerance
+                        final minSq = initialSqDist * 0.9025; // 0.95^2
+                        final maxSq = initialSqDist * 1.1025; // 1.05^2
+
+                        // Handle overlap (near zero distance)
+                        if (currentSqDist < 0.00000001) {
+                          double dirX = landmark.x - neighbor.x;
+                          double dirY = landmark.y - neighbor.y;
+                          if ((dirX * dirX + dirY * dirY) < 0.00000001) {
+                            dirX = 1.0;
+                            dirY = 0.0;
+                          }
+                          final len = dart_math.sqrt(dirX * dirX + dirY * dirY);
+                          dirX /= len;
+                          dirY /= len;
+                          final targetDist = dart_math.sqrt(minSq);
+                          currentX = neighbor.x + dirX * targetDist;
+                          currentY = neighbor.y + dirY * targetDist;
+                          continue;
+                        }
+
+                        if (currentSqDist < minSq || currentSqDist > maxSq) {
+                          final currentDist = dart_math.sqrt(currentSqDist);
+                          final initialDist = dart_math.sqrt(initialSqDist);
+
+                          double targetDist = currentDist;
+                          if (currentSqDist < minSq) {
+                            targetDist = initialDist * 0.95;
+                          } else if (currentSqDist > maxSq) {
+                            targetDist = initialDist * 1.05;
+                          }
+
+                          final scale = targetDist / currentDist;
+                          currentX = neighbor.x + dx * scale;
+                          currentY = neighbor.y + dy * scale;
+                        }
+                      }
+                    }
+                  }
+
+                  // Clamp to image bounds (0-1)
+                  final clampedX = currentX.clamp(0.0, 1.0);
+                  final clampedY = currentY.clamp(0.0, 1.0);
 
                   widget.onLandmarkMoved!(index, Offset(clampedX, clampedY));
                 }
@@ -96,10 +253,7 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: widget.landmarkColor,
-                    border: Border.all(
-                      color: Colors.white,
-                      width: 1,
-                    ),
+                    border: Border.all(color: Colors.white, width: 1),
                     boxShadow: [
                       // Drop shadow for depth
                       BoxShadow(
@@ -160,36 +314,14 @@ class _PoseConnectionPainter extends CustomPainter {
   final PoseDetectionResult poseResult;
   final bool showConnections;
   final Color connectionColor;
+  final List<List<PoseLandmarkType>> connections;
 
   _PoseConnectionPainter({
     required this.poseResult,
     required this.showConnections,
     required this.connectionColor,
+    required this.connections,
   });
-
-  static const List<List<PoseLandmarkType>> _connections = [
-    [PoseLandmarkType.nose, PoseLandmarkType.leftEye],
-    [PoseLandmarkType.leftEye, PoseLandmarkType.leftEar],
-    [PoseLandmarkType.nose, PoseLandmarkType.rightEye],
-    [PoseLandmarkType.rightEye, PoseLandmarkType.rightEar],
-
-    [PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder],
-    [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftHip],
-    [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightHip],
-    [PoseLandmarkType.leftHip, PoseLandmarkType.rightHip],
-
-    [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow],
-    [PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist],
-
-    [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow],
-    [PoseLandmarkType.rightElbow, PoseLandmarkType.rightWrist],
-
-    [PoseLandmarkType.leftHip, PoseLandmarkType.leftKnee],
-    [PoseLandmarkType.leftKnee, PoseLandmarkType.leftAnkle],
-
-    [PoseLandmarkType.rightHip, PoseLandmarkType.rightKnee],
-    [PoseLandmarkType.rightKnee, PoseLandmarkType.rightAnkle],
-  ];
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -204,7 +336,7 @@ class _PoseConnectionPainter extends CustomPainter {
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
-    for (final connection in _connections) {
+    for (final connection in connections) {
       final start = poseResult.getLandmark(connection[0]);
       final end = poseResult.getLandmark(connection[1]);
 

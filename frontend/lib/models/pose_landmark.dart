@@ -11,12 +11,7 @@ class PoseLandmark {
     required this.visibility,
   });
 
-  PoseLandmark copyWith({
-    double? x,
-    double? y,
-    double? z,
-    double? visibility,
-  }) {
+  PoseLandmark copyWith({double? x, double? y, double? z, double? visibility}) {
     return PoseLandmark(
       x: x ?? this.x,
       y: y ?? this.y,
@@ -32,10 +27,15 @@ class PoseLandmark {
 }
 
 class PoseDetectionResult {
+  final String id;
   final List<PoseLandmark> landmarks;
   final double confidence;
 
-  PoseDetectionResult({required this.landmarks, required this.confidence});
+  PoseDetectionResult({
+    String? id,
+    required this.landmarks,
+    required this.confidence,
+  }) : id = id ?? DateTime.now().microsecondsSinceEpoch.toString();
 
   PoseLandmark? getLandmark(PoseLandmarkType type) {
     final idx = type.landmarkIndex;

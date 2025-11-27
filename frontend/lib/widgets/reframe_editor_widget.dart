@@ -229,6 +229,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       );
 
       _poseResult = PoseDetectionResult(
+        id: _poseResult!.id,
         landmarks: landmarks,
         confidence: _poseResult!.confidence,
       );
@@ -319,7 +320,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
                         final double originalX = relativeX * _imageSize!.width;
                         final double originalY = relativeY * _imageSize!.height;
-                        
+
                         HapticFeedback.mediumImpact();
                         _handleSegmentationTrigger(originalX, originalY);
                       }
