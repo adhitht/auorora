@@ -17,6 +17,7 @@ import '../models/pose_landmark.dart';
 import 'pose_visualization_overlay.dart';
 import 'segmented_cutout_view.dart';
 import 'loading_indicator.dart';
+import '../services/inpainting_service.dart';
 
 class ReframeEditorWidget extends StatefulWidget {
   final File imageFile;
@@ -53,7 +54,11 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
   final PoseDetectionService _poseService = PoseDetectionService();
   final SegmentationService _segmentationService = SegmentationService();
+  final InpaintingService _inpaintingService = InpaintingService();
   bool _isPoseServiceInitialized = false;
+  
+  bool _isMagicMoveEnabled = false;
+  Uint8List? _cleanBackgroundBytes;
 
   @override
   void initState() {
@@ -75,18 +80,24 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         });
       }
     } catch (e) {
-      print('Failed to initialize pose service: $e');
+      debugPrint('Failed to initialize pose service: $e');
     }
 
     try {
       await _segmentationService.initialize();
       if (mounted) {
         _segmentationService.encodeImage(widget.imageFile).catchError((e) {
-          print('Background encoding failed: $e');
+          debugPrint('Background encoding failed: $e');
         });
       }
     } catch (e) {
-      print('Failed to initialize segmentation service: $e');
+      debugPrint('Failed to initialize segmentation service: $e');
+    }
+
+    try {
+      await _inpaintingService.initialize();
+    } catch (e) {
+      debugPrint('Failed to initialize inpainting service: $e');
     }
   }
 
@@ -109,7 +120,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         completer.complete();
       },
       onError: (dynamic exception, StackTrace? stackTrace) {
-        print('Failed to load image size: $exception');
+        debugPrint('Failed to load image size: $exception');
         completer.complete();
       },
     );
@@ -123,6 +134,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   void dispose() {
     _poseService.dispose();
     _segmentationService.dispose();
+    _inpaintingService.dispose();
     super.dispose();
   }
 
@@ -200,13 +212,30 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
             _showSegmentation = true;
             _cutoutPosition = Offset.zero;
           });
+
+          if (_isMagicMoveEnabled) {
+             debugPrint('ReframeEditor: Magic Move enabled, triggering inpainting...');
+             // Trigger inpainting
+             final inpaintedBytes = await _inpaintingService.inpaint(
+               widget.imageFile,
+               mask.mask,
+             );
+             debugPrint('ReframeEditor: Inpainting returned ${inpaintedBytes?.length ?? 0} bytes');
+             
+             if (mounted && inpaintedBytes != null) {
+               setState(() {
+                 _cleanBackgroundBytes = inpaintedBytes;
+               });
+             }
+          }
         }
       } else {
-        if (mounted)
+        if (mounted) {
           widget.onShowMessage?.call(
             'No object found at this location.',
             false,
           );
+        }
       }
     } catch (e) {
       if (mounted) widget.onShowMessage?.call('Selection failed: $e', false);
@@ -234,11 +263,20 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
       // If we have a cutout, we need to composite it
       if (_cutoutResult != null) {
-        final bytes = await widget.imageFile.readAsBytes();
-        var image = img.decodeImage(bytes);
-
+        img.Image? image;
+        
+        if (_cleanBackgroundBytes != null && _isMagicMoveEnabled) {
+           image = img.decodeImage(_cleanBackgroundBytes!);
+        } else {
+           final bytes = await widget.imageFile.readAsBytes();
+           image = img.decodeImage(bytes);
+        }
+        
+        // Ensure image is not null and baked
         if (image != null) {
-          image = img.bakeOrientation(image);
+           if (_cleanBackgroundBytes == null || !_isMagicMoveEnabled) {
+             image = img.bakeOrientation(image);
+           }
           final cutoutImage = img.decodeImage(_cutoutResult!.imageBytes);
 
           if (cutoutImage != null) {
@@ -395,7 +433,14 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                       }
                     }
                   },
-                  child: Image.file(widget.imageFile, fit: BoxFit.contain),
+                  child: _cleanBackgroundBytes != null && _isMagicMoveEnabled
+                      ? Image.memory(
+                          _cleanBackgroundBytes!,
+                          fit: BoxFit.contain,
+                          width: imageDisplayWidth,
+                          height: imageDisplayHeight,
+                        )
+                      : Image.file(widget.imageFile, fit: BoxFit.contain),
                 ),
 
                 if (_showPoseLandmarks &&
@@ -420,7 +465,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                     _imageSize != null)
                   Positioned(
                     left: offsetX + (_cutoutResult!.x * scale) + _cutoutPosition.dx ,
-                    top: offsetY + (_cutoutResult!.y * scale) + _cutoutPosition.dy - 65,
+                    top: offsetY + (_cutoutResult!.y * scale) + _cutoutPosition.dy,
                     width: _cutoutResult!.width * scale,
                     height: _cutoutResult!.height * scale,
                     child: GestureDetector(
@@ -482,6 +527,24 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
             ),
           ),
           */
+          
+          GlassButton(
+            onTap: () {
+              setState(() {
+                _isMagicMoveEnabled = !_isMagicMoveEnabled;
+                debugPrint('ReframeEditor: Magic Move toggled to $_isMagicMoveEnabled');
+                if (!_isMagicMoveEnabled) {
+                  _cleanBackgroundBytes = null;
+                }
+              });
+            },
+            child: Icon(
+              CupertinoIcons.wand_stars,
+              color: _isMagicMoveEnabled
+                  ? LiquidGlassTheme.primary
+                  : Colors.white,
+            ),
+          ),
           const Spacer(),
 
           GlassButton(onTap: _applyReframe, child: const Icon(Icons.check)),

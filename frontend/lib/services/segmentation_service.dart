@@ -99,6 +99,8 @@ class SegmentationService {
 
   int get validMaskWidth => _maskWidth;
   int get validMaskHeight => _maskHeight;
+  
+  List<List<List<List<double>>>>? get cachedRgbInput => _cachedRgbInput;
 
   Future<void> encodeImage(File imageFile) async {
     if (!_isInitialized) {
