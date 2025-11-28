@@ -6,11 +6,17 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 class GlassButton extends StatelessWidget {
   final Widget child;
   final VoidCallback onTap;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
 
   const GlassButton({
     super.key,
     required this.child,
     required this.onTap,
+    this.width = 42,
+    this.height = 42,
+    this.padding,
   });
 
   @override
@@ -36,8 +42,9 @@ class GlassButton extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                width: 42,
-                height: 42,
+                width: width,
+                height: height,
+                padding: padding,
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(25),
@@ -46,7 +53,7 @@ class GlassButton extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: child,
+                child: Center(child: child),
               ),
             ),
           ),
@@ -55,4 +62,3 @@ class GlassButton extends StatelessWidget {
     );
   }
 }
-

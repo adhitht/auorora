@@ -271,6 +271,8 @@ class _EditorScreenState extends State<EditorScreen>
           'contrast': adjustments['contrast'],
           'highlights': adjustments['highlights'],
           'shadows': adjustments['shadows'],
+          'saturation': adjustments['saturation'],
+          'temperature': adjustments['temperature'],
         },
       ),
     );
