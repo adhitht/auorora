@@ -110,6 +110,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with SingleTic
     try {
       await _segmentationService.initialize();
       await _segmentationService.encodeImage(widget.imageFile);
+      if (mounted) {
+        setState(() {});
+      }
     } catch (e) {
       debugPrint('Error initializing segmentation: $e');
     }
