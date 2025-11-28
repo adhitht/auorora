@@ -1,32 +1,37 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
+import 'package:onnxruntime/onnxruntime.dart';
+import 'package:path_provider/path_provider.dart';
 
 class InpaintingService {
-  static const String _modelPath = 'assets/models/LaMa-Dilated_float.tflite';
+  static const String _modelAssetPath = 'assets/models/migan_pipeline_v2.onnx';
   static const int _inputSize = 512;
 
-  Interpreter? _interpreter;
+  OrtSession? _session;
   bool _isInitialized = false;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      final options = InterpreterOptions()..threads = 4;
-      _interpreter = await Interpreter.fromAsset(_modelPath, options: options);
-      _isInitialized = true;
-      debugPrint('InpaintingService: Model loaded successfully');
+      OrtEnv.instance.init();
       
-      final inputTensors = _interpreter!.getInputTensors();
-      final outputTensors = _interpreter!.getOutputTensors();
+      // Copy asset to temp file because ONNX Runtime usually needs a file path
+      final tempDir = await getTemporaryDirectory();
+      final modelFile = File('${tempDir.path}/migan_model.onnx');
       
-      debugPrint('Inpainting Inputs:');
-      for (var t in inputTensors) {
-        debugPrint('  ${t.name}: ${t.shape} ${t.type}');
+      if (!await modelFile.exists()) {
+        debugPrint('InpaintingService: Copying model to ${modelFile.path}...');
+        final byteData = await rootBundle.load(_modelAssetPath);
+        await modelFile.writeAsBytes(byteData.buffer.asUint8List());
       }
+
+      final sessionOptions = OrtSessionOptions();
+      _session = OrtSession.fromFile(modelFile, sessionOptions);
+      _isInitialized = true;
+      debugPrint('InpaintingService: ONNX Model loaded successfully');
     } catch (e) {
       debugPrint('InpaintingService: Failed to load model: $e');
       rethrow;
@@ -42,6 +47,7 @@ class InpaintingService {
     try {
       final startTime = DateTime.now();
       
+      // 1. Prepare Image
       final imageBytes = await imageFile.readAsBytes();
       final image = img.decodeImage(imageBytes);
       if (image == null) return null;
@@ -50,6 +56,7 @@ class InpaintingService {
       final originalW = orientedImage.width;
       final originalH = orientedImage.height;
 
+      // Calculate scale to fit in 512x512 maintaining aspect ratio
       double scale = 1.0;
       if (originalW > originalH) {
         scale = _inputSize / originalW;
@@ -60,8 +67,9 @@ class InpaintingService {
       final targetW = (originalW * scale).round();
       final targetH = (originalH * scale).round();
 
-      debugPrint('InpaintingService: Original ${originalW}x${originalH}, Target ${targetW}x${targetH}');
+      debugPrint('InpaintingService: Original ${originalW}x$originalH, Target ${targetW}x$targetH');
 
+      // Resize image to fit
       final resizedImage = img.copyResize(
         orientedImage,
         width: targetW,
@@ -70,14 +78,6 @@ class InpaintingService {
       );
 
       // 2. Prepare Mask
-      // Mask comes in as 512x512 stretched. We need to un-stretch it to match image aspect ratio.
-      // Or better: The mask corresponds to the STRETCHED image (from SegmentationService).
-      // If we want to apply it to the PADDED image, we need to transform it.
-      // The easiest way is to treat the mask as an image, resize it to targetW x targetH.
-      // But wait, the mask input `maskBytes` is 512x512.
-      // If we resize 512x512 (stretched) -> targetW x targetH (aspect correct),
-      // we are effectively un-stretching it. This is correct.
-      
       final maskImage = img.Image.fromBytes(
         width: _inputSize,
         height: _inputSize,
@@ -92,79 +92,95 @@ class InpaintingService {
         interpolation: img.Interpolation.linear,
       );
 
-      // We'll center the image and mask in the 512x512 canvas
+      // 3. Create Padded Inputs (512x512)
       final padX = (_inputSize - targetW) ~/ 2;
       final padY = (_inputSize - targetH) ~/ 2;
 
-      final inputImage = List.generate(
-        1,
-        (b) => List.generate(
-          _inputSize,
-          (y) => List.generate(
-            _inputSize,
-            (x) {
-              // Check if inside the valid image area
-              if (x >= padX && x < padX + targetW && y >= padY && y < padY + targetH) {
-                final pixel = resizedImage.getPixel(x - padX, y - padY);
-                return [
-                  pixel.r / 255.0,
-                  pixel.g / 255.0,
-                  pixel.b / 255.0,
-                ];
-              }
-              // Padding (Grey or Black? LaMa usually handles 0 ok, or we can replicate edge)
-              // Let's use 0.5 (grey) or 0.0. 
-              return [0.5, 0.5, 0.5]; 
-            },
-          ),
-        ),
-      );
+      // Prepare Float32 Lists for ONNX
+      // Shape: [1, 3, 512, 512] for image
+      // Shape: [1, 1, 512, 512] for mask
+      
+      final Float32List imageFloatList = Float32List(1 * 3 * _inputSize * _inputSize);
+      final Float32List maskFloatList = Float32List(1 * 1 * _inputSize * _inputSize);
 
-      final inputMask = List.generate(
-        1,
-        (b) => List.generate(
-          _inputSize,
-          (y) => List.generate(
-            _inputSize,
-            (x) {
-              if (x >= padX && x < padX + targetW && y >= padY && y < padY + targetH) {
-                 final pixel = resizedMask.getPixel(x - padX, y - padY);
-                 // Mask: > 127 is object (1.0), else 0.0
-                 return [pixel.r > 127 ? 1.0 : 0.0];
-              }
-              // Padding area should NOT be masked (0.0) so it's kept as is?
-              // Or should it be masked? No, we don't want to inpaint the padding.
-              return [0.0];
-            },
-          ),
-        ),
+      for (int y = 0; y < _inputSize; y++) {
+        for (int x = 0; x < _inputSize; x++) {
+          double r = 0.5, g = 0.5, b = 0.5; // Padding
+          double m = 0.0; // Mask padding (0 = valid)
+
+          if (x >= padX && x < padX + targetW && y >= padY && y < padY + targetH) {
+            final pixel = resizedImage.getPixel(x - padX, y - padY);
+            // Normalize to 0..1
+            r = pixel.r / 255.0;
+            g = pixel.g / 255.0;
+            b = pixel.b / 255.0;
+            
+            final maskPixel = resizedMask.getPixel(x - padX, y - padY);
+            // Mask: 1 for hole, 0 for valid
+            m = maskPixel.r > 127 ? 1.0 : 0.0;
+          }
+
+          // NCHW layout
+          // Image
+          imageFloatList[0 * _inputSize * _inputSize + y * _inputSize + x] = r;
+          imageFloatList[1 * _inputSize * _inputSize + y * _inputSize + x] = g;
+          imageFloatList[2 * _inputSize * _inputSize + y * _inputSize + x] = b;
+          
+          // Mask
+          maskFloatList[0 * _inputSize * _inputSize + y * _inputSize + x] = m;
+        }
+      }
+
+      // Create Tensors
+      final imageTensor = OrtValueTensor.createTensorWithDataList(
+        imageFloatList,
+        [1, 3, _inputSize, _inputSize],
+      );
+      
+      final maskTensor = OrtValueTensor.createTensorWithDataList(
+        maskFloatList,
+        [1, 1, _inputSize, _inputSize],
       );
 
       // Run Inference
-      final outputBuffer = List.filled(1 * _inputSize * _inputSize * 3, 0.0).reshape([1, _inputSize, _inputSize, 3]);
+      final runOptions = OrtRunOptions();
       
-      _interpreter!.runForMultipleInputs([inputImage, inputMask], {0: outputBuffer});
+      // Using standard names 'img' and 'mask' based on common MI-GAN exports
+      final inputs = {
+        'image': imageTensor,
+        'mask': maskTensor,
+      };
+      
+      final outputs = _session!.run(runOptions, inputs);
       debugPrint('InpaintingService: Inference run complete');
-
+      
       // Process Output
-      // We need to extract the valid area (targetW x targetH) from the center
+      final outputTensor = outputs[0];
+      if (outputTensor == null) throw Exception('No output produced');
+      
+      // Handle output - assuming it returns the structured list [1][3][512][512]
+      final outputList = outputTensor.value as List<List<List<List<double>>>>; 
+      final outBatch = outputList[0]; // [3][512][512]
+      
       final outputImage = img.Image(width: targetW, height: targetH);
-      final outData = outputBuffer[0] as List<List<List<double>>>;
 
       for (int y = 0; y < targetH; y++) {
         for (int x = 0; x < targetW; x++) {
-          final pixel = outData[y + padY][x + padX];
+          double r = outBatch[0][y + padY][x + padX];
+          double g = outBatch[1][y + padY][x + padX];
+          double b = outBatch[2][y + padY][x + padX];
+          
           outputImage.setPixelRgb(
             x,
             y,
-            (pixel[0] * 255).clamp(0, 255).toInt(),
-            (pixel[1] * 255).clamp(0, 255).toInt(),
-            (pixel[2] * 255).clamp(0, 255).toInt(),
+            (r * 255).clamp(0, 255).toInt(),
+            (g * 255).clamp(0, 255).toInt(),
+            (b * 255).clamp(0, 255).toInt(),
           );
         }
       }
 
-      debugPrint('InpaintingService: Output extracted, resizing to original ${originalW}x${originalH}');
+      debugPrint('InpaintingService: Output extracted, resizing to original ${originalW}x$originalH');
       
       final inpaintedResized = img.copyResize(
         outputImage,
@@ -173,12 +189,7 @@ class InpaintingService {
         interpolation: img.Interpolation.linear,
       );
 
-      // Composite back onto original to preserve quality
-      // We need the mask at original resolution
-      // The mask we used for inference was 'resizedMask' (targetW x targetH)
-      // We need to resize that to originalW x originalH, or just resize the original 512 mask.
-      // Let's resize the 512 input mask to original size.
-      
+      // Composite back onto original
       final fullSizeMask = img.copyResize(
         img.Image.fromBytes(
           width: _inputSize,
@@ -193,13 +204,11 @@ class InpaintingService {
 
       debugPrint('InpaintingService: Compositing with original image...');
       
-      // Blend: If mask > threshold, use inpainted, else original
       for (int y = 0; y < originalH; y++) {
         for (int x = 0; x < originalW; x++) {
           final maskVal = fullSizeMask.getPixel(x, y).r;
-          if (maskVal > 100) { // Threshold
+          if (maskVal > 100) { 
              // Use inpainted
-             // inpaintedResized is already set
           } else {
              // Use original
              final origPixel = orientedImage.getPixel(x, y);
@@ -210,6 +219,12 @@ class InpaintingService {
 
       debugPrint('InpaintingService: Inference took ${DateTime.now().difference(startTime).inMilliseconds}ms');
       
+      // Cleanup
+      imageTensor.release();
+      maskTensor.release();
+      outputTensor.release();
+      runOptions.release();
+      
       return Uint8List.fromList(img.encodePng(inpaintedResized));
 
     } catch (e) {
@@ -219,7 +234,8 @@ class InpaintingService {
   }
 
   void dispose() {
-    _interpreter?.close();
+    _session?.release();
+    OrtEnv.instance.release();
     _isInitialized = false;
   }
 }

@@ -43,6 +43,7 @@ dependencies:
   google_fonts: ^6.3.2
   crop_image: ^1.0.16
   tflite_flutter: ^0.12.1
+  onnxruntime: ^1.4.1
 
 dev_dependencies:
   flutter_test:
