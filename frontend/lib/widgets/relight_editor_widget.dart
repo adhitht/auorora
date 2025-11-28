@@ -444,7 +444,11 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with SingleTic
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    _selectedTool == null
+                        ? _buildCompactToolGrid()
+                        : _buildCompactSlider(),
                     if (_selectedTool == null) ...[
+                      const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -473,11 +477,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with SingleTic
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
                     ],
-                    _selectedTool == null
-                        ? _buildCompactToolGrid()
-                        : _buildCompactSlider(),
                   ],
                 ),
               ),
