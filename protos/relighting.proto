@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package relighting;
+
+service RelightingService {
+  rpc Relight (RelightRequest) returns (RelightResponse);
+}
+
+message RelightRequest {
+  bytes image_data = 1;
+  bytes lightmap_data = 2;
+}
+
+message RelightResponse {
+  bytes processed_image_data = 1;
+}
