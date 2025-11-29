@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:apex/services/relighting_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -69,7 +70,8 @@ class RelightEditorWidget extends StatefulWidget {
   State<RelightEditorWidget> createState() => RelightEditorWidgetState();
 }
 
-class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerProviderStateMixin {
+class RelightEditorWidgetState extends State<RelightEditorWidget>
+    with TickerProviderStateMixin {
   bool _isProcessing = false;
   RelightTool? _selectedTool;
   late AnimationController _panelAnimationController;
@@ -93,7 +95,8 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
   // Light Paint State
   bool _isLightPaintActive = false;
   bool _isLightPaintSelecting = false;
-  final TransformationController _transformationController = TransformationController();
+  final TransformationController _transformationController =
+      TransformationController();
   List<LightPaintStroke> _lightPaintStrokes = [];
   Color _currentBrushColor = const Color(0xFFFFFFFF);
   double _currentBrushBrightness = 0.5;
@@ -120,7 +123,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
       curve: Curves.easeInOutCubic,
     );
     _panelAnimationController.forward();
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onControlPanelReady?.call(buildControlPanel);
     });
@@ -151,12 +154,27 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
 
     setState(() => _isProcessing = true);
 
+    // CALL THE BACKEND [DEMO]
+    final service = RelightingService();
+
+    final imageBytes = await widget.imageFile.readAsBytes();
+    final adjustedBytes = await _createAdjustedImageByte();
+
+    final processedBytes = await service.sendImageForRelighting(
+      imageBytes,
+      lightmapBytes: adjustedBytes,
+    );
+
     try {
-      final adjustedFile = await _createAdjustedImageFile();
+      final processedFile = await _createAdjustedImageFile(
+        processedBytes ?? adjustedBytes,
+      );
 
       if (mounted) {
-        final adjustments = _values.map((key, value) => MapEntry(key.name, value));
-        widget.onApply(adjustedFile, adjustments);
+        final adjustments = _values.map(
+          (key, value) => MapEntry(key.name, value),
+        );
+        widget.onApply(processedFile, adjustments);
         widget.onShowMessage?.call('Adjustments applied', true);
       }
     } catch (e) {
@@ -167,7 +185,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
     }
   }
 
-  Future<File> _createAdjustedImageFile() async {
+  Future<Uint8List> _createAdjustedImageByte() async {
     try {
       final imageBytes = await widget.imageFile.readAsBytes();
       final codec = await ui.instantiateImageCodec(imageBytes);
@@ -176,20 +194,38 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
 
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      
+
       canvas.drawImage(originalImage, Offset.zero, Paint());
 
       if (_maskImage != null) {
         final paint = Paint()..colorFilter = _buildColorFilter();
-        
-        canvas.saveLayer(Rect.fromLTWH(0, 0, originalImage.width.toDouble(), originalImage.height.toDouble()), Paint());
+
+        canvas.saveLayer(
+          Rect.fromLTWH(
+            0,
+            0,
+            originalImage.width.toDouble(),
+            originalImage.height.toDouble(),
+          ),
+          Paint(),
+        );
         canvas.drawImage(originalImage, Offset.zero, paint);
-        
+
         final maskPaint = Paint()..blendMode = BlendMode.dstIn;
-        final srcRect = Rect.fromLTWH(0, 0, _maskImage!.width.toDouble(), _maskImage!.height.toDouble());
-        final dstRect = Rect.fromLTWH(0, 0, originalImage.width.toDouble(), originalImage.height.toDouble());
+        final srcRect = Rect.fromLTWH(
+          0,
+          0,
+          _maskImage!.width.toDouble(),
+          _maskImage!.height.toDouble(),
+        );
+        final dstRect = Rect.fromLTWH(
+          0,
+          0,
+          originalImage.width.toDouble(),
+          originalImage.height.toDouble(),
+        );
         canvas.drawImageRect(_maskImage!, srcRect, dstRect, maskPaint);
-        
+
         canvas.restore();
       } else {
         final paint = Paint()..colorFilter = _buildColorFilter();
@@ -202,37 +238,50 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
           if (stroke.points.isEmpty) continue;
 
           if (stroke.type == LightPaintType.spot) {
-             // Draw Spot
-             final center = Offset(
-               stroke.points.first.dx * originalImage.width,
-               stroke.points.first.dy * originalImage.height,
-             );
-             
-             // Outer glow
-             final glowPaint = Paint()
-               ..color = stroke.color.withOpacity(stroke.brightness * 0.6)
-               ..style = PaintingStyle.fill
-               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
-               
-             canvas.drawCircle(center, stroke.width * (originalImage.width / 1000.0) * 1.5, glowPaint);
-             
-             // Core
-             final corePaint = Paint()
-               ..color = Colors.white.withOpacity(0.9)
-               ..style = PaintingStyle.fill
-               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-               
-             canvas.drawCircle(center, stroke.width * (originalImage.width / 1000.0) * 0.5, corePaint);
-             
+            // Draw Spot
+            final center = Offset(
+              stroke.points.first.dx * originalImage.width,
+              stroke.points.first.dy * originalImage.height,
+            );
+
+            // Outer glow
+            final glowPaint = Paint()
+              ..color = stroke.color.withOpacity(stroke.brightness * 0.6)
+              ..style = PaintingStyle.fill
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+
+            canvas.drawCircle(
+              center,
+              stroke.width * (originalImage.width / 1000.0) * 1.5,
+              glowPaint,
+            );
+
+            // Core
+            final corePaint = Paint()
+              ..color = Colors.white.withOpacity(0.9)
+              ..style = PaintingStyle.fill
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+
+            canvas.drawCircle(
+              center,
+              stroke.width * (originalImage.width / 1000.0) * 0.5,
+              corePaint,
+            );
           } else {
             // Draw Brush Stroke
             final paint = Paint()
               ..color = stroke.color.withOpacity(stroke.brightness)
-              ..strokeWidth = stroke.width * (originalImage.width / 1000.0) // Scale width relative to image size
+              ..strokeWidth =
+                  stroke.width *
+                  (originalImage.width /
+                      1000.0) // Scale width relative to image size
               ..strokeCap = StrokeCap.round
               ..strokeJoin = StrokeJoin.round
               ..style = PaintingStyle.stroke
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10); // Glow effect
+              ..maskFilter = const MaskFilter.blur(
+                BlurStyle.normal,
+                10,
+              ); // Glow effect
 
             final path = Path();
             final firstPoint = Offset(
@@ -253,7 +302,8 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
             // Draw core
             final corePaint = Paint()
               ..color = Colors.white.withOpacity(stroke.brightness * 0.8)
-              ..strokeWidth = (stroke.width * 0.4) * (originalImage.width / 1000.0)
+              ..strokeWidth =
+                  (stroke.width * 0.4) * (originalImage.width / 1000.0)
               ..strokeCap = StrokeCap.round
               ..strokeJoin = StrokeJoin.round
               ..style = PaintingStyle.stroke;
@@ -274,22 +324,24 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
       );
       final adjustedBytes = byteData!.buffer.asUint8List();
 
-      final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final newPath = '${dir.path}/relight_$timestamp.png';
-      final newFile = File(newPath);
-      await newFile.writeAsBytes(adjustedBytes);
-
       originalImage.dispose();
       adjustedImage.dispose();
 
-      return newFile;
+      return adjustedBytes;
     } catch (e) {
-      final dir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final newPath = '${dir.path}/relight_$timestamp.jpg';
-      return await widget.imageFile.copy(newPath);
+      final imageBytes = await widget.imageFile.readAsBytes();
+      return imageBytes;
     }
+  }
+
+  Future<File> _createAdjustedImageFile(Uint8List imageBytes) async {
+    final dir = await getTemporaryDirectory();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final newPath = '${dir.path}/relight_$timestamp.png';
+    final newFile = File(newPath);
+    await newFile.writeAsBytes(imageBytes);
+
+    return newFile;
   }
 
   void _resetAdjustments() {
@@ -311,7 +363,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
     final contrastScale = 1.0 + contrast;
     final contrastOffset = 128.0 * (1.0 - contrastScale);
     final satScale = 1.0;
-    
+
     const double rLum = 0.2126;
     const double gLum = 0.7152;
     const double bLum = 0.0722;
@@ -327,20 +379,39 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
     final totalOffset = contrastOffset + brightnessOffset;
 
     return ColorFilter.matrix([
-      (R + satScale) * contrastScale, G * contrastScale, B * contrastScale, 0, totalOffset + tempR,
-      R * contrastScale, (G + satScale) * contrastScale, B * contrastScale, 0, totalOffset,
-      R * contrastScale, G * contrastScale, (B + satScale) * contrastScale, 0, totalOffset + tempB,
-      0, 0, 0, 1, 0,
+      (R + satScale) * contrastScale,
+      G * contrastScale,
+      B * contrastScale,
+      0,
+      totalOffset + tempR,
+      R * contrastScale,
+      (G + satScale) * contrastScale,
+      B * contrastScale,
+      0,
+      totalOffset,
+      R * contrastScale,
+      G * contrastScale,
+      (B + satScale) * contrastScale,
+      0,
+      totalOffset + tempB,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_segmentationService.originalWidth == 0 || _segmentationService.originalHeight == 0) {
+    if (_segmentationService.originalWidth == 0 ||
+        _segmentationService.originalHeight == 0) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final aspectRatio = _segmentationService.originalWidth / _segmentationService.originalHeight;
+    final aspectRatio =
+        _segmentationService.originalWidth /
+        _segmentationService.originalHeight;
 
     return Stack(
       children: [
@@ -363,7 +434,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                     minScale: 0.7,
                     maxScale: 5.0,
                     onInteractionStart: (details) {
-                      if (_isLightPaintActive && !_isLightPaintMoving && details.pointerCount > 1) {
+                      if (_isLightPaintActive &&
+                          !_isLightPaintMoving &&
+                          details.pointerCount > 1) {
                         _cancelCurrentStroke();
                       }
                     },
@@ -374,7 +447,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                           tag: 'photo-editing',
                           child: Image.file(widget.imageFile, fit: BoxFit.fill),
                         ),
-                        
+
                         if (_maskImage != null)
                           ShaderMask(
                             shaderCallback: (bounds) {
@@ -382,38 +455,44 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                                 _maskImage!,
                                 TileMode.clamp,
                                 TileMode.clamp,
-                                (Matrix4.identity()
-                                      ..scale(
-                                        bounds.width / _maskImage!.width,
-                                        bounds.height / _maskImage!.height,
-                                      ))
+                                (Matrix4.identity()..scale(
+                                      bounds.width / _maskImage!.width,
+                                      bounds.height / _maskImage!.height,
+                                    ))
                                     .storage,
                               );
                             },
                             blendMode: BlendMode.dstIn,
                             child: ColorFiltered(
                               colorFilter: _buildColorFilter(),
-                              child: Image.file(widget.imageFile, fit: BoxFit.fill),
+                              child: Image.file(
+                                widget.imageFile,
+                                fit: BoxFit.fill,
+                              ),
                             ),
                           )
                         else if (!_isSegmentationActive)
                           ColorFiltered(
                             colorFilter: _buildColorFilter(),
-                            child: Image.file(widget.imageFile, fit: BoxFit.fill),
+                            child: Image.file(
+                              widget.imageFile,
+                              fit: BoxFit.fill,
+                            ),
                           ),
 
                         if (_maskImage != null)
                           LayoutBuilder(
                             builder: (context, constraints) {
                               return SegmentationFeedbackOverlay(
-                                key: ValueKey(_maskImage.hashCode), 
+                                key: ValueKey(_maskImage.hashCode),
                                 maskImage: _maskImage!,
                                 imageSize: constraints.biggest,
                               );
                             },
                           ),
 
-                        if ((_isSegmentationActive || _isLightPaintSelecting) && _maskImage == null)
+                        if ((_isSegmentationActive || _isLightPaintSelecting) &&
+                            _maskImage == null)
                           Container(
                             color: Colors.black.withOpacity(0.3),
                             child: const Center(
@@ -423,125 +502,164 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                                   color: Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
-                                  shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                                  shadows: [
+                                    Shadow(blurRadius: 4, color: Colors.black),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                          
-                         if (_isLightPaintActive) ...[
-                           // Greyish canvas overlay
-                           Container(
-                             color: Colors.black.withValues(alpha: 0.6),
-                           ),
-                           // Drawing layer
-                           RepaintBoundary(
-                             child: CustomPaint(
-                               painter: LightPaintPainter(strokes: _lightPaintStrokes),
-                               child: LayoutBuilder(
-                                 builder: (context, constraints) {
-                                   return IgnorePointer(
-                                     ignoring: _isLightPaintMoving,
-                                     child: Listener(
-                                       onPointerDown: (_) => _pointerCount++,
-                                       onPointerUp: (_) => _pointerCount--,
-                                       onPointerCancel: (_) => _pointerCount--,
-                                       child: GestureDetector(
-                                       onPanDown: (details) {
-                                         if (_pointerCount > 1) return;
-                                         
-                                         if (_lightPaintTool == LightPaintType.spot) {
-                                           final RenderBox box = context.findRenderObject() as RenderBox;
-                                           final size = box.size;
-                                           final local = details.localPosition;
-                                           final normalized = Offset(local.dx / size.width, local.dy / size.height);
-                                           
-                                           setState(() {
-                                             _lightPaintStrokes.add(LightPaintStroke(
-                                               points: [normalized],
-                                               color: _currentBrushColor,
-                                               brightness: _currentBrushBrightness,
-                                               width: 30.0, // Initial width
-                                               type: LightPaintType.spot,
-                                             ));
-                                           });
-                                           HapticFeedback.mediumImpact();
-                                           _startSpotGrowth();
-                                         }
-                                       },
-                                       onPanStart: (details) {
-                                         if (_pointerCount > 1) return;
 
-                                         if (_lightPaintTool == LightPaintType.brush) {
-                                           final RenderBox box = context.findRenderObject() as RenderBox;
-                                           final size = box.size;
-                                           final local = details.localPosition;
-                                           final normalized = Offset(local.dx / size.width, local.dy / size.height);
-                                           
-                                           setState(() {
-                                             _lightPaintStrokes.add(LightPaintStroke(
-                                               points: [normalized],
-                                               color: _currentBrushColor,
-                                               brightness: _currentBrushBrightness,
-                                               width: 20.0,
-                                               type: LightPaintType.brush,
-                                             ));
-                                           });
-                                         }
-                                       },
-                                       onPanUpdate: (details) {
-                                         if (_pointerCount > 1) return;
+                        if (_isLightPaintActive) ...[
+                          // Greyish canvas overlay
+                          Container(color: Colors.black.withValues(alpha: 0.6)),
+                          // Drawing layer
+                          RepaintBoundary(
+                            child: CustomPaint(
+                              painter: LightPaintPainter(
+                                strokes: _lightPaintStrokes,
+                              ),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return IgnorePointer(
+                                    ignoring: _isLightPaintMoving,
+                                    child: Listener(
+                                      onPointerDown: (_) => _pointerCount++,
+                                      onPointerUp: (_) => _pointerCount--,
+                                      onPointerCancel: (_) => _pointerCount--,
+                                      child: GestureDetector(
+                                        onPanDown: (details) {
+                                          if (_pointerCount > 1) return;
 
-                                         final RenderBox box = context.findRenderObject() as RenderBox;
-                                         final size = box.size;
-                                         final local = details.localPosition;
-                                         final normalized = Offset(local.dx / size.width, local.dy / size.height);
+                                          if (_lightPaintTool ==
+                                              LightPaintType.spot) {
+                                            final RenderBox box =
+                                                context.findRenderObject()
+                                                    as RenderBox;
+                                            final size = box.size;
+                                            final local = details.localPosition;
+                                            final normalized = Offset(
+                                              local.dx / size.width,
+                                              local.dy / size.height,
+                                            );
 
-                                         if (_lightPaintTool == LightPaintType.brush) {
-                                           setState(() {
-                                             final currentStroke = _lightPaintStrokes.last;
-                                             currentStroke.points.add(normalized);
-                                           });
-                                         } else if (_lightPaintTool == LightPaintType.spot) {
+                                            setState(() {
+                                              _lightPaintStrokes.add(
+                                                LightPaintStroke(
+                                                  points: [normalized],
+                                                  color: _currentBrushColor,
+                                                  brightness:
+                                                      _currentBrushBrightness,
+                                                  width: 30.0, // Initial width
+                                                  type: LightPaintType.spot,
+                                                ),
+                                              );
+                                            });
+                                            HapticFeedback.mediumImpact();
+                                            _startSpotGrowth();
+                                          }
+                                        },
+                                        onPanStart: (details) {
+                                          if (_pointerCount > 1) return;
+
+                                          if (_lightPaintTool ==
+                                              LightPaintType.brush) {
+                                            final RenderBox box =
+                                                context.findRenderObject()
+                                                    as RenderBox;
+                                            final size = box.size;
+                                            final local = details.localPosition;
+                                            final normalized = Offset(
+                                              local.dx / size.width,
+                                              local.dy / size.height,
+                                            );
+
+                                            setState(() {
+                                              _lightPaintStrokes.add(
+                                                LightPaintStroke(
+                                                  points: [normalized],
+                                                  color: _currentBrushColor,
+                                                  brightness:
+                                                      _currentBrushBrightness,
+                                                  width: 20.0,
+                                                  type: LightPaintType.brush,
+                                                ),
+                                              );
+                                            });
+                                          }
+                                        },
+                                        onPanUpdate: (details) {
+                                          if (_pointerCount > 1) return;
+
+                                          final RenderBox box =
+                                              context.findRenderObject()
+                                                  as RenderBox;
+                                          final size = box.size;
+                                          final local = details.localPosition;
+                                          final normalized = Offset(
+                                            local.dx / size.width,
+                                            local.dy / size.height,
+                                          );
+
+                                          if (_lightPaintTool ==
+                                              LightPaintType.brush) {
+                                            setState(() {
+                                              final currentStroke =
+                                                  _lightPaintStrokes.last;
+                                              currentStroke.points.add(
+                                                normalized,
+                                              );
+                                            });
+                                          } else if (_lightPaintTool ==
+                                              LightPaintType.spot) {
                                             // Reset growth timer to prevent growth while moving
                                             _startSpotGrowth();
 
                                             // Move the spot
                                             setState(() {
-                                              final lastStroke = _lightPaintStrokes.last;
-                                              _lightPaintStrokes[_lightPaintStrokes.length - 1] = LightPaintStroke(
-                                                 points: [normalized], // Update position
-                                                 color: lastStroke.color,
-                                                 brightness: lastStroke.brightness,
-                                                 width: lastStroke.width, // Keep growing width
-                                                 type: LightPaintType.spot,
+                                              final lastStroke =
+                                                  _lightPaintStrokes.last;
+                                              _lightPaintStrokes[_lightPaintStrokes
+                                                      .length -
+                                                  1] = LightPaintStroke(
+                                                points: [
+                                                  normalized,
+                                                ], // Update position
+                                                color: lastStroke.color,
+                                                brightness:
+                                                    lastStroke.brightness,
+                                                width: lastStroke
+                                                    .width, // Keep growing width
+                                                type: LightPaintType.spot,
                                               );
                                             });
-                                         }
-                                       },
-                                       onPanEnd: (details) => _stopSpotGrowth(),
-                                       onPanCancel: () {
-                                         _stopSpotGrowth();
-                                         // Remove the last stroke if it was cancelled (e.g. by zoom)
-                                         if (_lightPaintStrokes.isNotEmpty) {
-                                           setState(() {
-                                             _lightPaintStrokes.removeLast();
-                                           });
-                                         }
-                                       },
-                                       ),
-                                     ),
-                                   );
-                                 },
-                               ),
-                             ),
-                           ),
-                         ]
-,
+                                          }
+                                        },
+                                        onPanEnd: (details) =>
+                                            _stopSpotGrowth(),
+                                        onPanCancel: () {
+                                          _stopSpotGrowth();
+                                          // Remove the last stroke if it was cancelled (e.g. by zoom)
+                                          if (_lightPaintStrokes.isNotEmpty) {
+                                            setState(() {
+                                              _lightPaintStrokes.removeLast();
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
 
                         if (_isSegmenting)
                           const Center(
-                            child: CircularProgressIndicator(color: Colors.white),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
                           ),
                       ],
                     ),
@@ -551,7 +669,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
             );
           },
         ),
-        
+
         if (_isProcessing)
           Positioned.fill(
             child: Container(
@@ -578,61 +696,82 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
     );
   }
 
-  Future<void> _handleTap(TapUpDetails details, BoxConstraints constraints, double aspectRatio) async {
+  Future<void> _handleTap(
+    TapUpDetails details,
+    BoxConstraints constraints,
+    double aspectRatio,
+  ) async {
     // Allow tap if in segmentation mode OR if in Light Paint selection mode
-    if ((!_isSegmentationActive && !_isLightPaintSelecting) || _isSegmenting) return;
+    if ((!_isSegmentationActive && !_isLightPaintSelecting) || _isSegmenting)
+      return;
 
     setState(() => _isSegmenting = true);
 
     try {
-      final fittedSizes = applyBoxFit(BoxFit.contain, Size(aspectRatio, 1), constraints.biggest);
+      final fittedSizes = applyBoxFit(
+        BoxFit.contain,
+        Size(aspectRatio, 1),
+        constraints.biggest,
+      );
       final destinationSize = fittedSizes.destination;
-      
+
       final double offsetX = (constraints.maxWidth - destinationSize.width) / 2;
-      final double offsetY = (constraints.maxHeight - destinationSize.height) / 2;
-      
+      final double offsetY =
+          (constraints.maxHeight - destinationSize.height) / 2;
+
       final localPosition = details.localPosition;
-      
-      if (localPosition.dx < offsetX || localPosition.dx > offsetX + destinationSize.width ||
-          localPosition.dy < offsetY || localPosition.dy > offsetY + destinationSize.height) {
+
+      if (localPosition.dx < offsetX ||
+          localPosition.dx > offsetX + destinationSize.width ||
+          localPosition.dy < offsetY ||
+          localPosition.dy > offsetY + destinationSize.height) {
         setState(() => _isSegmenting = false);
         return;
       }
 
-      final double relativeX = (localPosition.dx - offsetX) / destinationSize.width * _segmentationService.originalWidth;
-      final double relativeY = (localPosition.dy - offsetY) / destinationSize.height * _segmentationService.originalHeight;
+      final double relativeX =
+          (localPosition.dx - offsetX) /
+          destinationSize.width *
+          _segmentationService.originalWidth;
+      final double relativeY =
+          (localPosition.dy - offsetY) /
+          destinationSize.height *
+          _segmentationService.originalHeight;
 
-      final result = await _segmentationService.getMaskForPoint(relativeX, relativeY);
-      
+      final result = await _segmentationService.getMaskForPoint(
+        relativeX,
+        relativeY,
+      );
+
       if (result != null) {
         final int width = result.width;
         final int height = result.height;
         final int pixelCount = width * height;
         final Uint8List rgbaBytes = Uint8List(pixelCount * 4);
-        
+
         // Calculate bounds for zoom
         int minX = width;
         int maxX = 0;
         int minY = height;
         int maxY = 0;
-        
+
         for (int i = 0; i < pixelCount; i++) {
           final int maskVal = result.mask[i];
           if (maskVal > 0) {
-             int x = i % width;
-             int y = i ~/ width;
-             if (x < minX) minX = x;
-             if (x > maxX) maxX = x;
-             if (y < minY) minY = y;
-             if (y > maxY) maxY = y;
+            int x = i % width;
+            int y = i ~/ width;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
           }
-          
+
           rgbaBytes[i * 4 + 0] = 255;
           rgbaBytes[i * 4 + 1] = 255;
           rgbaBytes[i * 4 + 2] = 255;
           rgbaBytes[i * 4 + 3] = maskVal;
         }
-        
+
         final Completer<ui.Image> completer = Completer();
         ui.decodeImageFromPixels(
           rgbaBytes,
@@ -641,36 +780,36 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
           ui.PixelFormat.rgba8888,
           (ui.Image img) => completer.complete(img),
         );
-        
+
         final maskImage = await completer.future;
-        
+
         setState(() {
           _maskImage = maskImage;
           if (_isLightPaintSelecting) {
-             final double scaleX = _segmentationService.originalWidth / width;
-             final double scaleY = _segmentationService.originalHeight / height;
-             
-             _selectedObjectBounds = Rect.fromLTRB(
-               minX * scaleX, 
-               minY * scaleY, 
-               maxX * scaleX, 
-               maxY * scaleY
-             );
-             
-             // Use destinationSize (image display size) for viewSize, and 0 offsets because InteractiveViewer's content is the image
-             _zoomToObject(destinationSize, destinationSize, 0, 0);
-             _isLightPaintActive = true;
-             _isLightPaintSelecting = false;
-             // Initialize with empty strokes
-             _lightPaintStrokes = [];
+            final double scaleX = _segmentationService.originalWidth / width;
+            final double scaleY = _segmentationService.originalHeight / height;
+
+            _selectedObjectBounds = Rect.fromLTRB(
+              minX * scaleX,
+              minY * scaleY,
+              maxX * scaleX,
+              maxY * scaleY,
+            );
+
+            // Use destinationSize (image display size) for viewSize, and 0 offsets because InteractiveViewer's content is the image
+            _zoomToObject(destinationSize, destinationSize, 0, 0);
+            _isLightPaintActive = true;
+            _isLightPaintSelecting = false;
+            // Initialize with empty strokes
+            _lightPaintStrokes = [];
           } else {
-             _isSegmentationActive = false;
+            _isSegmentationActive = false;
           }
         });
         HapticFeedback.heavyImpact();
-        
+
         if (_isLightPaintActive) {
-           widget.onControlPanelReady?.call(buildControlPanel);
+          widget.onControlPanelReady?.call(buildControlPanel);
         }
       }
     } catch (e) {
@@ -680,12 +819,18 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
     }
   }
 
-  void _zoomToObject(Size viewSize, Size imageSize, double offsetX, double offsetY) {
+  void _zoomToObject(
+    Size viewSize,
+    Size imageSize,
+    double offsetX,
+    double offsetY,
+  ) {
     if (_selectedObjectBounds == null) return;
 
     // Convert mask bounds to view coordinates
     final double scaleX = imageSize.width / _segmentationService.originalWidth;
-    final double scaleY = imageSize.height / _segmentationService.originalHeight;
+    final double scaleY =
+        imageSize.height / _segmentationService.originalHeight;
 
     final double viewMinX = offsetX + _selectedObjectBounds!.left * scaleX;
     final double viewMinY = offsetY + _selectedObjectBounds!.top * scaleY;
@@ -714,42 +859,50 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
       ..translate(transX, transY)
       ..scale(zoomScale);
 
-    final animation = Matrix4Tween(
-      begin: _transformationController.value,
-      end: matrix,
-    ).animate(CurvedAnimation(
-      parent: _zoomAnimationController,
-      curve: Curves.easeInOut,
-    ));
+    final animation =
+        Matrix4Tween(
+          begin: _transformationController.value,
+          end: matrix,
+        ).animate(
+          CurvedAnimation(
+            parent: _zoomAnimationController,
+            curve: Curves.easeInOut,
+          ),
+        );
 
     animation.addListener(() {
       _transformationController.value = animation.value;
     });
-    
+
     _zoomAnimationController.forward(from: 0.0);
   }
 
   void _resetZoom() {
-    final animation = Matrix4Tween(
-      begin: _transformationController.value,
-      end: Matrix4.identity(),
-    ).animate(CurvedAnimation(
-      parent: _zoomAnimationController,
-      curve: Curves.easeInOut,
-    ));
+    final animation =
+        Matrix4Tween(
+          begin: _transformationController.value,
+          end: Matrix4.identity(),
+        ).animate(
+          CurvedAnimation(
+            parent: _zoomAnimationController,
+            curve: Curves.easeInOut,
+          ),
+        );
 
     animation.addListener(() {
       _transformationController.value = animation.value;
     });
-    
+
     _zoomAnimationController.forward(from: 0.0);
   }
 
   void _startSpotGrowth() {
     _spotGrowthTimer?.cancel();
-    _spotGrowthTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+    _spotGrowthTimer = Timer.periodic(const Duration(milliseconds: 16), (
+      timer,
+    ) {
       if (_lightPaintStrokes.isEmpty) return;
-      
+
       setState(() {
         final lastStroke = _lightPaintStrokes.last;
         if (lastStroke.type == LightPaintType.spot) {
@@ -757,13 +910,14 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
           final newWidth = lastStroke.width + 1.0;
           // Cap max width if needed, e.g., 200.0
           if (newWidth < 200.0) {
-             _lightPaintStrokes[_lightPaintStrokes.length - 1] = LightPaintStroke(
-               points: lastStroke.points,
-               color: lastStroke.color,
-               brightness: lastStroke.brightness,
-               width: newWidth,
-               type: LightPaintType.spot,
-             );
+            _lightPaintStrokes[_lightPaintStrokes.length -
+                1] = LightPaintStroke(
+              points: lastStroke.points,
+              color: lastStroke.color,
+              brightness: lastStroke.brightness,
+              width: newWidth,
+              type: LightPaintType.spot,
+            );
           }
         }
       });
@@ -818,27 +972,36 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                             onTap: widget.onCancel,
                           ),
                           _buildCompactButton(
-                            icon: _isSegmentationActive ? Icons.person_search : Icons.person_search_outlined,
-                            color: _isSegmentationActive ? LiquidGlassTheme.primary : Colors.white,
+                            icon: _isSegmentationActive
+                                ? Icons.person_search
+                                : Icons.person_search_outlined,
+                            color: _isSegmentationActive
+                                ? LiquidGlassTheme.primary
+                                : Colors.white,
                             onTap: () {
                               HapticFeedback.mediumImpact();
                               setState(() {
                                 _isSegmentationActive = !_isSegmentationActive;
-                                _isLightPaintSelecting = false; // Disable light paint selection if switching
+                                _isLightPaintSelecting =
+                                    false; // Disable light paint selection if switching
                                 if (!_isSegmentationActive) {
-                                  _maskImage = null; 
+                                  _maskImage = null;
                                 }
                               });
                             },
                           ),
                           _buildCompactButton(
                             icon: Icons.brush,
-                            color: _isLightPaintSelecting ? LiquidGlassTheme.primary : Colors.white,
+                            color: _isLightPaintSelecting
+                                ? LiquidGlassTheme.primary
+                                : Colors.white,
                             onTap: () {
                               HapticFeedback.mediumImpact();
                               setState(() {
-                                _isLightPaintSelecting = !_isLightPaintSelecting;
-                                _isSegmentationActive = false; // Disable regular segmentation if switching
+                                _isLightPaintSelecting =
+                                    !_isLightPaintSelecting;
+                                _isSegmentationActive =
+                                    false; // Disable regular segmentation if switching
                                 if (!_isLightPaintSelecting) {
                                   // Cancel selection
                                 }
@@ -910,53 +1073,65 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: [
-                          Colors.white,
-                          Colors.amber,
-                          Colors.orange,
-                          Colors.red,
-                          Colors.purple,
-                          Colors.blue,
-                          Colors.cyan,
-                          Colors.green,
-                        ].map((color) {
-                          final isSelected = _currentBrushColor == color;
-                          return GestureDetector(
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setState(() => _currentBrushColor = color);
-                              widget.onControlPanelReady?.call(buildControlPanel);
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                                border: isSelected
-                                    ? Border.all(color: Colors.white, width: 2)
-                                    : null,
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: color.withOpacity(0.5),
-                                          blurRadius: 8,
-                                          spreadRadius: 2,
-                                        )
-                                      ]
-                                    : null,
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                        children:
+                            [
+                              Colors.white,
+                              Colors.amber,
+                              Colors.orange,
+                              Colors.red,
+                              Colors.purple,
+                              Colors.blue,
+                              Colors.cyan,
+                              Colors.green,
+                            ].map((color) {
+                              final isSelected = _currentBrushColor == color;
+                              return GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _currentBrushColor = color);
+                                  widget.onControlPanelReady?.call(
+                                    buildControlPanel,
+                                  );
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                    border: isSelected
+                                        ? Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          )
+                                        : null,
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: color.withOpacity(0.5),
+                                              blurRadius: 8,
+                                              spreadRadius: 2,
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                       ),
                     ),
                     const SizedBox(height: 16),
                     // Brightness Slider
                     Row(
                       children: [
-                        const Icon(Icons.brightness_low, color: Colors.white70, size: 16),
+                        const Icon(
+                          Icons.brightness_low,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
                         Expanded(
                           child: SliderTheme(
                             data: SliderThemeData(
@@ -964,8 +1139,11 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                               activeTrackColor: LiquidGlassTheme.primary,
                               inactiveTrackColor: Colors.white.withOpacity(0.2),
                               thumbColor: Colors.white,
-                              overlayColor: LiquidGlassTheme.primary.withOpacity(0.1),
-                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                              overlayColor: LiquidGlassTheme.primary
+                                  .withOpacity(0.1),
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 8,
+                              ),
                             ),
                             child: Slider(
                               value: _currentBrushBrightness,
@@ -973,12 +1151,18 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                               max: 1.0,
                               onChanged: (v) {
                                 setState(() => _currentBrushBrightness = v);
-                                widget.onControlPanelReady?.call(buildControlPanel);
+                                widget.onControlPanelReady?.call(
+                                  buildControlPanel,
+                                );
                               },
                             ),
                           ),
                         ),
-                        const Icon(Icons.brightness_high, color: Colors.white70, size: 16),
+                        const Icon(
+                          Icons.brightness_high,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -1010,13 +1194,16 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                           },
                         ),
                         _buildCompactButton(
-                          icon: _lightPaintTool == LightPaintType.brush ? Icons.brush : Icons.light_mode,
+                          icon: _lightPaintTool == LightPaintType.brush
+                              ? Icons.brush
+                              : Icons.light_mode,
                           color: Colors.white,
                           onTap: () {
                             HapticFeedback.mediumImpact();
                             setState(() {
                               _isLightPaintMoving = false; // Disable move mode
-                              _lightPaintTool = _lightPaintTool == LightPaintType.brush
+                              _lightPaintTool =
+                                  _lightPaintTool == LightPaintType.brush
                                   ? LightPaintType.spot
                                   : LightPaintType.brush;
                             });
@@ -1025,7 +1212,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                         ),
                         _buildCompactButton(
                           icon: Icons.pan_tool,
-                          color: _isLightPaintMoving ? LiquidGlassTheme.primary : Colors.white,
+                          color: _isLightPaintMoving
+                              ? LiquidGlassTheme.primary
+                              : Colors.white,
                           onTap: () {
                             HapticFeedback.mediumImpact();
                             setState(() {
@@ -1044,7 +1233,8 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                               _isLightPaintActive = false;
                               _selectedTool = null;
                               _selectedObjectBounds = null;
-                              _maskImage = null; // Remove feedback after applying
+                              _maskImage =
+                                  null; // Remove feedback after applying
                             });
                             widget.onControlPanelReady?.call(buildControlPanel);
                           },
@@ -1072,8 +1262,10 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
   }
 
   Widget _buildToolGrid() {
-    final tools = RelightTool.values.where((t) => t != RelightTool.lightPaint).toList();
-    
+    final tools = RelightTool.values
+        .where((t) => t != RelightTool.lightPaint)
+        .toList();
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -1084,7 +1276,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
 
   Widget _buildCompactToolButton(RelightTool tool) {
     final hasValue = (_values[tool] ?? 0).abs() > 0.01;
-    
+
     return GestureDetector(
       onTap: () {
         HapticFeedback.mediumImpact();
@@ -1101,7 +1293,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
               color: Colors.white.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: hasValue 
+                color: hasValue
                     ? LiquidGlassTheme.primary.withValues(alpha: 0.6)
                     : Colors.white.withValues(alpha: 0.15),
                 width: hasValue ? 1.5 : 1,
@@ -1112,7 +1304,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                 Center(
                   child: Icon(
                     tool.icon,
-                    color: hasValue ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.9),
+                    color: hasValue
+                        ? LiquidGlassTheme.primary
+                        : Colors.white.withValues(alpha: 0.9),
                     size: 20,
                   ),
                 ),
@@ -1128,7 +1322,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: LiquidGlassTheme.primary.withValues(alpha: 0.5),
+                            color: LiquidGlassTheme.primary.withValues(
+                              alpha: 0.5,
+                            ),
                             blurRadius: 4,
                             spreadRadius: 1,
                           ),
@@ -1143,7 +1339,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
           Text(
             tool.label,
             style: TextStyle(
-              color: hasValue ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.6),
+              color: hasValue
+                  ? LiquidGlassTheme.primary
+                  : Colors.white.withValues(alpha: 0.6),
               fontSize: 10,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.3,
@@ -1157,7 +1355,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
   Widget _buildCompactSlider() {
     final tool = _selectedTool!;
     final value = _values[tool]!;
-    
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1186,12 +1384,16 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                   color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.arrow_back,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
-            
+
             const SizedBox(width: 12),
-            
+
             // Slider Track
             Expanded(
               child: Container(
@@ -1216,7 +1418,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                         activeTrackColor: Colors.transparent,
                         inactiveTrackColor: Colors.transparent,
                         thumbColor: LiquidGlassTheme.primary,
-                        overlayColor: LiquidGlassTheme.primary.withValues(alpha: 0.1),
+                        overlayColor: LiquidGlassTheme.primary.withValues(
+                          alpha: 0.1,
+                        ),
                         thumbShape: const _MinimalThumbShape(),
                         trackShape: const RoundedRectSliderTrackShape(),
                       ),
@@ -1235,9 +1439,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                 ),
               ),
             ),
-            
+
             const SizedBox(width: 12),
-            
+
             // Value Display
             Container(
               width: 48,
@@ -1258,7 +1462,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                 ),
               ),
             ),
-            
+
             const SizedBox(width: 12),
 
             // Apply Button
@@ -1275,7 +1479,11 @@ class RelightEditorWidgetState extends State<RelightEditorWidget> with TickerPro
                     width: 1,
                   ),
                 ),
-                child: const Icon(Icons.check, color: LiquidGlassTheme.primary, size: 20),
+                child: const Icon(
+                  Icons.check,
+                  color: LiquidGlassTheme.primary,
+                  size: 20,
+                ),
               ),
             ),
           ],
@@ -1307,7 +1515,7 @@ class _MinimalThumbShape extends SliderComponentShape {
     required Size sizeWithOverflow,
   }) {
     final canvas = context.canvas;
-    
+
     // Glow
     final glowPaint = Paint()
       ..color = sliderTheme.thumbColor!.withValues(alpha: 0.3)
@@ -1319,7 +1527,7 @@ class _MinimalThumbShape extends SliderComponentShape {
       ),
       glowPaint,
     );
-    
+
     // Thumb
     final paint = Paint()
       ..color = sliderTheme.thumbColor!

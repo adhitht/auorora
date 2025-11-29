@@ -22,8 +22,9 @@ class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
             processed_image = model_instance.predict(image, lightmap)
             
             output_buffer = io.BytesIO()
-            save_format = image.format if image.format else 'PNG'
-            processed_image.save(output_buffer, format=save_format)
+            processed_image.save(output_buffer, format='PNG')
+            # save_format = image.format if image.format else 'PNG'
+            # processed_image.save(output_buffer, format=save_format)
             processed_image_data = output_buffer.getvalue()
             
             return relighting_pb2.RelightResponse(processed_image_data=processed_image_data)
