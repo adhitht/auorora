@@ -8,7 +8,7 @@ DART_OUT_DIR="frontend/lib/generated"
 echo "Generating gRPC Python files..."
 mkdir -p $PYTHON_OUT_DIR
 
-python3 -m grpc_tools.protoc \
+./venv/bin/python3 -m grpc_tools.protoc \
     -I $PROTO_DIR \
     --python_out=$PYTHON_OUT_DIR \
     --grpc_python_out=$PYTHON_OUT_DIR \
@@ -26,7 +26,7 @@ fi
 
 mkdir -p $DART_OUT_DIR
 
-python3 -m grpc_tools.protoc \
+./venv/bin/python3 -m grpc_tools.protoc \
     -I $PROTO_DIR \
     --plugin=protoc-gen-dart=$(which protoc-gen-dart) \
     --dart_out=grpc:$DART_OUT_DIR \

@@ -19,11 +19,13 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 class RelightRequest extends $pb.GeneratedMessage {
   factory RelightRequest({
     $core.List<$core.int>? imageData,
-    $core.List<$core.int>? lightmapData,
+    $core.List<$core.int>? maskData,
+    $core.List<$core.int>? jsonData,
   }) {
     final result = create();
     if (imageData != null) result.imageData = imageData;
-    if (lightmapData != null) result.lightmapData = lightmapData;
+    if (maskData != null) result.maskData = maskData;
+    if (jsonData != null) result.jsonData = jsonData;
     return result;
   }
 
@@ -43,7 +45,9 @@ class RelightRequest extends $pb.GeneratedMessage {
     ..a<$core.List<$core.int>>(
         1, _omitFieldNames ? '' : 'imageData', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
-        2, _omitFieldNames ? '' : 'lightmapData', $pb.PbFieldType.OY)
+        2, _omitFieldNames ? '' : 'maskData', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(
+        3, _omitFieldNames ? '' : 'jsonData', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -75,13 +79,22 @@ class RelightRequest extends $pb.GeneratedMessage {
   void clearImageData() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $core.List<$core.int> get lightmapData => $_getN(1);
+  $core.List<$core.int> get maskData => $_getN(1);
   @$pb.TagNumber(2)
-  set lightmapData($core.List<$core.int> value) => $_setBytes(1, value);
+  set maskData($core.List<$core.int> value) => $_setBytes(1, value);
   @$pb.TagNumber(2)
-  $core.bool hasLightmapData() => $_has(1);
+  $core.bool hasMaskData() => $_has(1);
   @$pb.TagNumber(2)
-  void clearLightmapData() => $_clearField(2);
+  void clearMaskData() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get jsonData => $_getN(2);
+  @$pb.TagNumber(3)
+  set jsonData($core.List<$core.int> value) => $_setBytes(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasJsonData() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearJsonData() => $_clearField(3);
 }
 
 class RelightResponse extends $pb.GeneratedMessage {

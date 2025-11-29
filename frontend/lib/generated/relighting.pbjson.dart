@@ -20,14 +20,15 @@ const RelightRequest$json = {
   '1': 'RelightRequest',
   '2': [
     {'1': 'image_data', '3': 1, '4': 1, '5': 12, '10': 'imageData'},
-    {'1': 'lightmap_data', '3': 2, '4': 1, '5': 12, '10': 'lightmapData'},
+    {'1': 'mask_data', '3': 2, '4': 1, '5': 12, '10': 'maskData'},
+    {'1': 'json_data', '3': 3, '4': 1, '5': 12, '10': 'jsonData'},
   ],
 };
 
 /// Descriptor for `RelightRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List relightRequestDescriptor = $convert.base64Decode(
-    'Cg5SZWxpZ2h0UmVxdWVzdBIdCgppbWFnZV9kYXRhGAEgASgMUglpbWFnZURhdGESIwoNbGlnaH'
-    'RtYXBfZGF0YRgCIAEoDFIMbGlnaHRtYXBEYXRh');
+    'Cg5SZWxpZ2h0UmVxdWVzdBIdCgppbWFnZV9kYXRhGAEgASgMUglpbWFnZURhdGESGwoJbWFza1'
+    '9kYXRhGAIgASgMUghtYXNrRGF0YRIbCglqc29uX2RhdGEYAyABKAxSCGpzb25EYXRh');
 
 @$core.Deprecated('Use relightResponseDescriptor instead')
 const RelightResponse$json = {

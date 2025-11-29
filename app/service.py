@@ -1,11 +1,13 @@
 import grpc
 import io
+import json
 import numpy as np
 from PIL import Image
 
 from app import relighting_pb2
 from app import relighting_pb2_grpc
-from app.model import RelightingModel
+from app.ml_models import RelightingModel
+from app.model.lights_model import LightsRequest
 
 model_instance = RelightingModel()
 
@@ -16,14 +18,19 @@ class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
             image = Image.open(io.BytesIO(image_data))
             
             lightmap = None
-            if request.lightmap_data:
-                lightmap = Image.open(io.BytesIO(request.lightmap_data))
+            if request.json_data:
+                try:
+                    lights_request = LightsRequest.model_validate_json(request.json_data)
+                    print(f"Received {len(lights_request.lights)} lights")
+                    for light in lights_request.lights:
+                        print(f"Light: {light}")
+                except Exception as e:
+                    print(f"Error parsing json_data: {e}")
 
             processed_image = model_instance.predict(image, lightmap)
             
             output_buffer = io.BytesIO()
             processed_image.save(output_buffer, format='PNG')
-            # save_format = image.format if image.format else 'PNG'
             # processed_image.save(output_buffer, format=save_format)
             processed_image_data = output_buffer.getvalue()
             

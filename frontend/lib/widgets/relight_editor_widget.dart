@@ -16,6 +16,7 @@ import 'glass_button.dart';
 import 'segmentation_feedback_overlay.dart';
 import 'light_paint_stroke.dart';
 import 'light_paint_painter.dart';
+import 'package:apex/models/relighting_model.dart';
 
 enum RelightTool {
   exposure,
@@ -149,25 +150,47 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     }
   }
 
+  Future<Uint8List?> _getMaskBytes() async {
+    if (_maskImage == null) return null;
+    
+    final ByteData? byteData = await _maskImage!.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    
+    return byteData?.buffer.asUint8List();
+  }
+
   Future<void> _applyRelight() async {
     if (_isProcessing) return;
 
     setState(() => _isProcessing = true);
 
-    // CALL THE BACKEND [DEMO]
     final service = RelightingService();
 
     final imageBytes = await widget.imageFile.readAsBytes();
-    final adjustedBytes = await _createAdjustedImageByte();
+    final maskBytes = await _getMaskBytes();
+    final lights = _generateLightsFromStrokes();
+
+    if (lights.isEmpty && maskBytes == null) {
+        debugPrint("No lights or mask selected.");
+    }
 
     final processedBytes = await service.sendImageForRelighting(
       imageBytes,
-      lightmapBytes: adjustedBytes,
+      lights: lights,
+      maskBytes: maskBytes,
     );
+
+    if (processedBytes == null) {
+      debugPrint("Failed to process image.");
+      setState(() => _isProcessing = false);
+      widget.onShowMessage?.call('Failed to process image', false);
+      return;
+    }
 
     try {
       final processedFile = await _createAdjustedImageFile(
-        processedBytes ?? adjustedBytes,
+        processedBytes,
       );
 
       if (mounted) {
@@ -342,6 +365,41 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     await newFile.writeAsBytes(imageBytes);
 
     return newFile;
+  }
+
+  List<Light> _generateLightsFromStrokes() {
+    return _lightPaintStrokes.map((stroke) {
+      final colorHex = '#${stroke.color.toARGB32().toRadixString(16).substring(2).padLeft(6, '0')}';
+
+      final temperature = (stroke.brightness * 10000).toInt().clamp(1000, 10000);
+
+      if (stroke.type == LightPaintType.spot) {
+        final centerPoint = stroke.points.last;
+        
+        return Light(
+          geometry: LightGeometry(
+            type: 'SingleLightSource',
+            center: [centerPoint.dx, centerPoint.dy],
+            radius: stroke.width / 1000.0, 
+          ),
+          properties: LightProperties(
+            temperature: temperature,
+            color: colorHex,
+          ),
+        );
+      } else {
+        return Light(
+          geometry: LightGeometry(
+            type: 'LineString',
+            coordinates: stroke.points.map((p) => [p.dx, p.dy]).toList(),
+          ),
+          properties: LightProperties(
+            temperature: temperature,
+            color: colorHex,
+          ),
+        );
+      }
+    }).toList();
   }
 
   void _resetAdjustments() {

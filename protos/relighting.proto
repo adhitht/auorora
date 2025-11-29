@@ -8,7 +8,8 @@ service RelightingService {
 
 message RelightRequest {
   bytes image_data = 1;
-  bytes lightmap_data = 2;
+  bytes mask_data = 2;
+  bytes json_data = 3;
 }
 
 message RelightResponse {

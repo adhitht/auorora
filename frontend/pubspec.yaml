@@ -45,6 +45,7 @@ dependencies:
   tflite_flutter: ^0.12.1
   onnxruntime: ^1.4.1
   grpc: ^5.0.0
+  flutter_dotenv:
 
 dev_dependencies:
   flutter_test:
@@ -71,6 +72,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/models/
+    - .env
     # - assets/models
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg

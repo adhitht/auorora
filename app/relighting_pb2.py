@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10relighting.proto\x12\nrelighting\";\n\x0eRelightRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\x12\x15\n\rlightmap_data\x18\x02 \x01(\x0c\"/\n\x0fRelightResponse\x12\x1c\n\x14processed_image_data\x18\x01 \x01(\x0c\x32W\n\x11RelightingService\x12\x42\n\x07Relight\x12\x1a.relighting.RelightRequest\x1a\x1b.relighting.RelightResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10relighting.proto\x12\nrelighting\"J\n\x0eRelightRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\x12\x11\n\tmask_data\x18\x02 \x01(\x0c\x12\x11\n\tjson_data\x18\x03 \x01(\x0c\"/\n\x0fRelightResponse\x12\x1c\n\x14processed_image_data\x18\x01 \x01(\x0c\x32W\n\x11RelightingService\x12\x42\n\x07Relight\x12\x1a.relighting.RelightRequest\x1a\x1b.relighting.RelightResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,9 +32,9 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'relighting_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_RELIGHTREQUEST']._serialized_start=32
-  _globals['_RELIGHTREQUEST']._serialized_end=91
-  _globals['_RELIGHTRESPONSE']._serialized_start=93
-  _globals['_RELIGHTRESPONSE']._serialized_end=140
-  _globals['_RELIGHTINGSERVICE']._serialized_start=142
-  _globals['_RELIGHTINGSERVICE']._serialized_end=229
+  _globals['_RELIGHTREQUEST']._serialized_end=106
+  _globals['_RELIGHTRESPONSE']._serialized_start=108
+  _globals['_RELIGHTRESPONSE']._serialized_end=155
+  _globals['_RELIGHTINGSERVICE']._serialized_start=157
+  _globals['_RELIGHTINGSERVICE']._serialized_end=244
 # @@protoc_insertion_point(module_scope)

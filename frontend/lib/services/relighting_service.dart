@@ -1,7 +1,10 @@
-import 'dart:io';
+import 'dart:convert';
+
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:grpc/grpc.dart';
+import 'package:apex/models/relighting_model.dart';
 import 'package:apex/generated/relighting.pbgrpc.dart';
 
 class RelightingService {
@@ -9,31 +12,41 @@ class RelightingService {
   late ClientChannel _channel;
 
   RelightingService() {
-    final host = '172.22.130.196'; 
-    
+    final host = dotenv.env['GRPC_HOST'] ?? 'localhost';
+    final port = dotenv.env['GRPC_PORT'] ?? '50051';
+
+    debugPrint('GRPC Host: $host');
+    debugPrint('GRPC Port: $port');
+
     _channel = ClientChannel(
       host,
-      port: 50051,
-      options: const ChannelOptions(
-        credentials: ChannelCredentials.insecure(),
-      ),
+      port: int.parse(port),
+      options: const ChannelOptions(credentials: ChannelCredentials.insecure()),
     );
 
     _stub = RelightingServiceClient(_channel);
   }
 
-  Future<Uint8List?> sendImageForRelighting(Uint8List imageBytes, {Uint8List? lightmapBytes}) async {
+  Future<Uint8List?> sendImageForRelighting(
+    Uint8List imageBytes, {
+    List<Light>? lights,
+    Uint8List? maskBytes,
+  }) async {
     try {
-      final request = RelightRequest()
-        ..imageData = imageBytes;
-      
-      if (lightmapBytes != null) {
-        request.lightmapData = lightmapBytes;
+      final request = RelightRequest()..imageData = imageBytes;
+
+      if (lights != null) {
+        final lightsRequest = LightsRequest(lights: lights);
+        final jsonString = lightsRequest.toRawJson();
+        request.jsonData = utf8.encode(jsonString);
+      }
+
+      if (maskBytes != null) {
+        request.maskData = maskBytes;
       }
 
       final response = await _stub.relight(request);
       return Uint8List.fromList(response.processedImageData);
-      
     } catch (e) {
       debugPrint('Caught error: $e');
       return null;
