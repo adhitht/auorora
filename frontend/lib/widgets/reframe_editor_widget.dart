@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui'; // For ImageFilter
+import 'dart:ui' as ui; // For ImageFilter and Image
+import 'dart:typed_data';
 
 import 'package:apex/widgets/glass_button.dart';
 import 'package:flutter/cupertino.dart';
@@ -16,8 +17,17 @@ import '../services/pose_detection_service.dart';
 import '../models/pose_landmark.dart';
 import 'pose_visualization_overlay.dart';
 import 'segmented_cutout_view.dart';
+import 'segmentation_feedback_overlay.dart';
 import 'loading_indicator.dart';
 import '../services/inpainting_service.dart';
+
+enum ReframeMode {
+  initial,
+  segmenting,
+  segmented,
+  moving,
+  posing,
+}
 
 class ReframeEditorWidget extends StatefulWidget {
   final File imageFile;
@@ -43,9 +53,9 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   bool _isProcessing = false;
   bool _isPoseDetecting = false;
   bool _isSegmentationRunning = false;
-  bool _showPoseLandmarks = false;
-  bool _showSegmentation = false;
   Size? _imageSize;
+
+  ReframeMode _mode = ReframeMode.initial;
 
   PoseDetectionResult? _poseResult;
   CutoutResult? _cutoutResult;
@@ -57,8 +67,13 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   final InpaintingService _inpaintingService = InpaintingService();
   bool _isPoseServiceInitialized = false;
   
-  bool _isMagicMoveEnabled = false;
+  bool _isMagicMoveEnabled = true; // Default to true for "Move" mode
   Uint8List? _cleanBackgroundBytes;
+  
+  // Feedback
+  ui.Image? _feedbackMaskImage;
+  // Key to force recreation of feedback overlay
+  Key _feedbackKey = UniqueKey();
 
   @override
   void initState() {
@@ -151,7 +166,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       if (mounted) {
         setState(() {
           _poseResult = result;
-          _showPoseLandmarks = result != null;
           _isPoseDetecting = false;
         });
 
@@ -169,10 +183,24 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     }
   }
 
-  void _togglePoseVisibility() {
-    setState(() {
-      _showPoseLandmarks = !_showPoseLandmarks;
-    });
+  Future<ui.Image> _createMaskImage(Uint8List mask, int width, int height) {
+    final completer = Completer<ui.Image>();
+    final pixels = Uint8List(width * height * 4);
+    for (int i = 0; i < width * height; i++) {
+      final val = mask[i];
+      pixels[i * 4] = 255;
+      pixels[i * 4 + 1] = 255;
+      pixels[i * 4 + 2] = 255;
+      pixels[i * 4 + 3] = val;
+    }
+    ui.decodeImageFromPixels(
+      pixels,
+      width,
+      height,
+      ui.PixelFormat.rgba8888,
+      (image) => completer.complete(image),
+    );
+    return completer.future;
   }
 
   Future<void> _handleSegmentationTrigger(double x, double y) async {
@@ -188,7 +216,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       }
 
       // Sync image size with the service to ensure coordinate consistency
-      // The cutout coordinates are in the service's coordinate space
       if (mounted &&
           _segmentationService.originalWidth > 0 &&
           _segmentationService.originalHeight > 0) {
@@ -200,34 +227,25 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         });
       }
 
-      final mask = await _segmentationService.getMaskForPoint(x, y);
-      if (mask != null) {
-        final cutout = await _segmentationService.createCutout(
-          widget.imageFile,
+      final maskResult = await _segmentationService.getMaskForPoint(x, y);
+      
+      if (maskResult != null) {
+        // Generate feedback image
+        final feedbackImage = await _createMaskImage(
+          maskResult.mask,
+          maskResult.width,
+          maskResult.height,
         );
 
         if (mounted) {
           setState(() {
-            _cutoutResult = cutout;
-            _showSegmentation = true;
-            _cutoutPosition = Offset.zero;
+            _feedbackMaskImage = feedbackImage;
+            _feedbackKey = UniqueKey(); // Force rebuild of overlay
+            _mode = ReframeMode.segmented;
+            _cutoutResult = null; // Reset cutout until "Move" is clicked
+            _cleanBackgroundBytes = null;
           });
-
-          if (_isMagicMoveEnabled) {
-             debugPrint('ReframeEditor: Magic Move enabled, triggering inpainting...');
-             // Trigger inpainting
-             final inpaintedBytes = await _inpaintingService.inpaint(
-               widget.imageFile,
-               mask.mask,
-             );
-             debugPrint('ReframeEditor: Inpainting returned ${inpaintedBytes?.length ?? 0} bytes');
-             
-             if (mounted && inpaintedBytes != null) {
-               setState(() {
-                 _cleanBackgroundBytes = inpaintedBytes;
-               });
-             }
-          }
+          widget.onControlPanelReady?.call(buildReframeOptionsBar);
         }
       } else {
         if (mounted) {
@@ -248,6 +266,72 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     }
   }
 
+  Future<void> _enterMoveMode() async {
+    if (_mode == ReframeMode.moving) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      // Create cutout if not exists
+      if (_cutoutResult == null) {
+        final cutout = await _segmentationService.createCutout(widget.imageFile);
+        if (mounted) {
+          setState(() {
+            _cutoutResult = cutout;
+            _cutoutPosition = Offset.zero;
+          });
+        }
+      }
+
+      // Trigger inpainting if needed
+      if (_isMagicMoveEnabled && _cleanBackgroundBytes == null) {
+        final segments = await _segmentationService.getAllSegments();
+        if (segments.isNotEmpty) {
+           final inpaintedBytes = await _inpaintingService.inpaint(
+             widget.imageFile,
+             segments.first,
+           );
+           
+           if (mounted && inpaintedBytes != null) {
+             setState(() {
+               _cleanBackgroundBytes = inpaintedBytes;
+             });
+           }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _mode = ReframeMode.moving;
+          _isProcessing = false;
+        });
+        widget.onControlPanelReady?.call(buildReframeOptionsBar);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+        widget.onShowMessage?.call('Failed to enter move mode: $e', false);
+      }
+    }
+  }
+
+  Future<void> _enterPoseMode() async {
+    if (_mode == ReframeMode.posing) return;
+
+    setState(() {
+      _mode = ReframeMode.posing;
+    });
+    widget.onControlPanelReady?.call(buildReframeOptionsBar);
+
+    if (_poseResult == null) {
+      await _detectPose();
+    }
+  }
+
   Future<void> _applyReframe() async {
     if (_isProcessing) return;
 
@@ -261,8 +345,8 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         '${dir.path}/reframe_${DateTime.now().millisecondsSinceEpoch}.png',
       );
 
-      // If we have a cutout, we need to composite it
-      if (_cutoutResult != null) {
+      // If we have a cutout and are in moving mode, we need to composite it
+      if (_cutoutResult != null && _mode == ReframeMode.moving) {
         img.Image? image;
         
         if (_cleanBackgroundBytes != null && _isMagicMoveEnabled) {
@@ -352,7 +436,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
           Positioned.fill(
             child: ClipRect(
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
                   color: Colors.black.withOpacity(0.3),
                   child: const Center(
@@ -362,126 +446,135 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
               ),
             ),
           ),
+          
+        // Instruction overlay for segmentation
+        if (_mode == ReframeMode.segmenting && !_isProcessing)
+          Positioned(
+            top: 100,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Tap on a subject to select',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
 
   Widget _buildReframeWidget() {
+    if (_imageSize == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
       child: Hero(
         tag: 'photo-editing',
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double imageDisplayWidth = 0;
-            double imageDisplayHeight = 0;
-            double offsetX = 0;
-            double offsetY = 0;
-            double scale = 1.0;
-
-            if (_imageSize != null) {
-              final double scaleX = constraints.maxWidth / _imageSize!.width;
-              final double scaleY = constraints.maxHeight / _imageSize!.height;
-              scale = scaleX < scaleY ? scaleX : scaleY;
-              
-              // Update scale for composition logic
-              if (_lastScale != scale) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    setState(() {
-                      _lastScale = scale;
-                    });
-                  }
-                });
-              }
-
-              imageDisplayWidth = _imageSize!.width * scale;
-              imageDisplayHeight = _imageSize!.height * scale;
-
-              offsetX = (constraints.maxWidth - imageDisplayWidth) / 2;
-              offsetY = (constraints.maxHeight - imageDisplayHeight) / 2;
-            }
-
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                GestureDetector(
-                  onLongPressStart: (details) {
-                    if (_imageSize != null) {
-                      final double left = offsetX;
-                      final double top = offsetY;
-                      final double right = left + imageDisplayWidth;
-                      final double bottom = top + imageDisplayHeight;
-
-                      final localPos = details.localPosition;
-
-                      if (localPos.dx >= left &&
-                          localPos.dx <= right &&
-                          localPos.dy >= top &&
-                          localPos.dy <= bottom) {
-                        // Map to original image coordinates
-                        final double relativeX =
-                            (localPos.dx - left) / imageDisplayWidth;
-                        final double relativeY =
-                            (localPos.dy - top) / imageDisplayHeight;
-
-                        final double originalX = relativeX * _imageSize!.width;
-                        final double originalY = relativeY * _imageSize!.height;
-
-                        HapticFeedback.mediumImpact();
-                        _handleSegmentationTrigger(originalX, originalY);
-                      }
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: _imageSize!.width / _imageSize!.height,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double scale = constraints.maxWidth / _imageSize!.width;
+                
+                // Update scale for composition logic
+                if (_lastScale != scale) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _lastScale = scale;
+                      });
                     }
-                  },
-                  child: _cleanBackgroundBytes != null && _isMagicMoveEnabled
-                      ? Image.memory(
-                          _cleanBackgroundBytes!,
-                          fit: BoxFit.contain,
-                          width: imageDisplayWidth,
-                          height: imageDisplayHeight,
-                        )
-                      : Image.file(widget.imageFile, fit: BoxFit.contain),
-                ),
+                  });
+                }
 
-                if (_showPoseLandmarks &&
-                    _poseResult != null &&
-                    _imageSize != null)
-                  Positioned(
-                    left: offsetX,
-                    top: offsetY,
-                    width: imageDisplayWidth,
-                    height: imageDisplayHeight,
-                    child: PoseVisualizationOverlay(
-                      poseResult: _poseResult,
-                      imageSize: Size(imageDisplayWidth, imageDisplayHeight),
-                      showConnections: true,
-                      onLandmarkMoved: _handleLandmarkMove,
-                    ),
-                  ),
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    GestureDetector(
+                      onTapUp: (details) {
+                        if (_mode == ReframeMode.segmenting) {
+                          final localPos = details.localPosition;
+                          
+                          // Since we are inside AspectRatio -> StackFit.expand,
+                          // localPos is directly relative to the image display area.
+                          
+                          // Map to original image coordinates
+                          final double relativeX = localPos.dx / constraints.maxWidth;
+                          final double relativeY = localPos.dy / constraints.maxHeight;
 
-                // Segmentation cutout
-                if (_showSegmentation &&
-                    _cutoutResult != null &&
-                    _imageSize != null)
-                  Positioned(
-                    left: offsetX + (_cutoutResult!.x * scale) + _cutoutPosition.dx ,
-                    top: offsetY + (_cutoutResult!.y * scale) + _cutoutPosition.dy,
-                    width: _cutoutResult!.width * scale,
-                    height: _cutoutResult!.height * scale,
-                    child: GestureDetector(
-                      onPanUpdate: (details) {
-                        setState(() {
-                          _cutoutPosition += details.delta;
-                        });
+                          final double originalX = relativeX * _imageSize!.width;
+                          final double originalY = relativeY * _imageSize!.height;
+
+                          HapticFeedback.mediumImpact();
+                          _handleSegmentationTrigger(originalX, originalY);
+                        }
                       },
-                      child: SegmentedCutoutView(
-                        imageBytes: _cutoutResult!.imageBytes,
-                      ),
+                      child: _mode == ReframeMode.moving && 
+                             _cleanBackgroundBytes != null && 
+                             _isMagicMoveEnabled
+                          ? Image.memory(
+                              _cleanBackgroundBytes!,
+                              fit: BoxFit.fill,
+                            )
+                          : Image.file(widget.imageFile, fit: BoxFit.fill),
                     ),
-                  ),
-              ],
-            );
-          },
+
+                    // Segmentation Feedback
+                    if (_feedbackMaskImage != null && 
+                        (_mode == ReframeMode.segmented || _mode == ReframeMode.moving || _mode == ReframeMode.posing))
+                       IgnorePointer(
+                         child: SegmentationFeedbackOverlay(
+                           key: _feedbackKey,
+                           maskImage: _feedbackMaskImage!,
+                           imageSize: constraints.biggest,
+                         ),
+                       ),
+
+                    // Pose Visualization
+                    if (_mode == ReframeMode.posing &&
+                        _poseResult != null)
+                      PoseVisualizationOverlay(
+                        poseResult: _poseResult,
+                        imageSize: constraints.biggest,
+                        showConnections: true,
+                        onLandmarkMoved: _handleLandmarkMove,
+                      ),
+
+                    // Segmentation cutout (Move Mode)
+                    if (_mode == ReframeMode.moving &&
+                        _cutoutResult != null)
+                      Positioned(
+                        left: (_cutoutResult!.x * scale) + _cutoutPosition.dx,
+                        top: (_cutoutResult!.y * scale) + _cutoutPosition.dy,
+                        width: _cutoutResult!.width * scale,
+                        height: _cutoutResult!.height * scale,
+                        child: GestureDetector(
+                          onPanUpdate: (details) {
+                            setState(() {
+                              _cutoutPosition += details.delta;
+                            });
+                          },
+                          child: SegmentedCutoutView(
+                            imageBytes: _cutoutResult!.imageBytes,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -498,53 +591,89 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       ),
       child: Row(
         children: [
-          // Pose detection button
-          GlassButton(
-            onTap: _poseResult == null ? _detectPose : _togglePoseVisibility,
-            child: Icon(
-              _poseResult != null
-                  ? CupertinoIcons.person_crop_circle_fill
-                  : CupertinoIcons.person_crop_circle,
-              color: _showPoseLandmarks
-                  ? LiquidGlassTheme.primary
-                  : Colors.white,
+          if (_mode == ReframeMode.initial || _mode == ReframeMode.segmenting)
+            GlassButton(
+              onTap: () {
+                setState(() {
+                  _mode = _mode == ReframeMode.segmenting 
+                      ? ReframeMode.initial 
+                      : ReframeMode.segmenting;
+                });
+                widget.onControlPanelReady?.call(buildReframeOptionsBar);
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    _mode == ReframeMode.segmenting
+                        ? CupertinoIcons.person_crop_circle_fill
+                        : CupertinoIcons.person_crop_circle,
+                    color: _mode == ReframeMode.segmenting
+                        ? LiquidGlassTheme.primary
+                        : Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Segment',
+                    style: TextStyle(
+                      color: _mode == ReframeMode.segmenting
+                          ? LiquidGlassTheme.primary
+                          : Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          const SizedBox(width: 12),
+          if (_mode == ReframeMode.segmented || 
+              _mode == ReframeMode.moving || 
+              _mode == ReframeMode.posing) ...[
+            GlassButton(
+              onTap: _enterMoveMode,
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.move,
+                    color: _mode == ReframeMode.moving
+                        ? LiquidGlassTheme.primary
+                        : Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Move',
+                    style: TextStyle(
+                      color: _mode == ReframeMode.moving
+                          ? LiquidGlassTheme.primary
+                          : Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            GlassButton(
+              onTap: _enterPoseMode,
+              child: Row(
+                children: [
+                  Icon(
+                    CupertinoIcons.person_crop_circle,
+                    color: _mode == ReframeMode.posing
+                        ? LiquidGlassTheme.primary
+                        : Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Pose',
+                    style: TextStyle(
+                      color: _mode == ReframeMode.posing
+                          ? LiquidGlassTheme.primary
+                          : Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
-          // Segmentation button removed as per request
-          /*
-          GlassButton(
-            onTap: _toggleSegmentationVisibility,
-            child: Icon(
-              _showSegmentation
-                  ? CupertinoIcons.person_crop_rectangle_fill
-                  : CupertinoIcons.person_crop_rectangle,
-              color: _showSegmentation
-                  ? LiquidGlassTheme.primary
-                  : Colors.white,
-            ),
-          ),
-          */
-          
-          GlassButton(
-            onTap: () {
-              setState(() {
-                _isMagicMoveEnabled = !_isMagicMoveEnabled;
-                debugPrint('ReframeEditor: Magic Move toggled to $_isMagicMoveEnabled');
-                if (!_isMagicMoveEnabled) {
-                  _cleanBackgroundBytes = null;
-                }
-              });
-            },
-            child: Icon(
-              CupertinoIcons.wand_stars,
-              color: _isMagicMoveEnabled
-                  ? LiquidGlassTheme.primary
-                  : Colors.white,
-            ),
-          ),
           const Spacer(),
 
           GlassButton(onTap: _applyReframe, child: const Icon(Icons.check)),

@@ -88,10 +88,21 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
             children: [
               Positioned.fill(
                 child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 3.0, sigmaY: 3.0),
+                  child: Image.memory(
+                    widget.imageBytes,
+                    color: Colors.white.withOpacity(1.0),
+                    colorBlendMode: BlendMode.srcIn,
+                    fit: BoxFit.fill,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: ImageFiltered(
                   imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                   child: Image.memory(
                     widget.imageBytes,
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.black.withOpacity(0.5),
                     colorBlendMode: BlendMode.srcIn,
                     fit: BoxFit.fill,
                   ),
