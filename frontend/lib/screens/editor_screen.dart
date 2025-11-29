@@ -351,15 +351,11 @@ class _EditorScreenState extends State<EditorScreen>
           Column(
             children: [
               // Top app bar (keep existing API)
+              // Top app bar (keep existing API)
               EditorTopBar(
                 onBackTap: _navigateBack,
                 onSaveTap: _savePhoto,
-                onUndoTap: _handleUndo,
-                onRedoTap: _handleRedo,
-                onHistoryTap: _showHistoryViewer,
                 isSaving: _isProcessing,
-                canUndo: _historyManager.canUndo,
-                canRedo: _historyManager.canRedo,
               ),
 
               Expanded(child: _buildPhotoArea()),
@@ -432,6 +428,18 @@ class _EditorScreenState extends State<EditorScreen>
             right: 0,
             bottom: 0,
             child: EditorBottomBar(
+              selectedTool: _isCropMode
+                  ? EditorTool.crop
+                  : _isRelightMode
+                      ? EditorTool.relight
+                      : _isReframeMode
+                          ? EditorTool.reframe
+                          : null,
+              onUndo: _handleUndo,
+              onRedo: _handleRedo,
+              onHistory: _showHistoryViewer,
+              canUndo: _historyManager.canUndo,
+              canRedo: _historyManager.canRedo,
               toolCallbacks: <EditorTool, VoidCallback?>{
                 EditorTool.crop: () => _handleToolSelection(EditorTool.crop),
                 EditorTool.relight: () =>

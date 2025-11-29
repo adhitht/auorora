@@ -20,11 +20,23 @@ enum EditorTool {
 class EditorBottomBar extends StatefulWidget {
   final Map<EditorTool, VoidCallback?> toolCallbacks;
   final List<EditorTool> tools;
+  final EditorTool? selectedTool;
+  final VoidCallback? onUndo;
+  final VoidCallback? onRedo;
+  final VoidCallback? onHistory;
+  final bool canUndo;
+  final bool canRedo;
 
   const EditorBottomBar({
     super.key,
     required this.toolCallbacks,
     this.tools = EditorTool.values,
+    this.selectedTool,
+    this.onUndo,
+    this.onRedo,
+    this.onHistory,
+    this.canUndo = false,
+    this.canRedo = false,
   });
 
   @override
@@ -32,7 +44,6 @@ class EditorBottomBar extends StatefulWidget {
 }
 
 class _EditorBottomBarState extends State<EditorBottomBar> {
-  int _selectedIndex = 0;
   bool _isMoving = false;
   bool _isDragging = false;
   double _dragX = 0.0;
@@ -49,6 +60,14 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     super.initState();
     _keys = List.generate(widget.tools.length, (_) => GlobalKey());
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateHighlight());
+  }
+
+  @override
+  void didUpdateWidget(EditorBottomBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedTool != widget.selectedTool) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateHighlight());
+    }
   }
 
   int _getHoverIndex(double dragX) {
@@ -99,7 +118,12 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   }
 
   void _updateHighlight() {
-    final key = _keys[_selectedIndex];
+    if (widget.selectedTool == null) return;
+
+    final index = widget.tools.indexOf(widget.selectedTool!);
+    if (index == -1) return;
+
+    final key = _keys[index];
     final ctx = key.currentContext;
     if (ctx == null) return;
 
@@ -127,8 +151,6 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   }
 
   void _select(int index) {
-    setState(() => _selectedIndex = index);
-    _updateHighlight();
     widget.toolCallbacks[widget.tools[index]]?.call();
     HapticFeedback.lightImpact();
   }
@@ -139,116 +161,190 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.all(LiquidGlassTheme.spacingXSmall),
-        child: Center(
-          child: LiquidGlassLayer(
-            settings: const LiquidGlassSettings(
-              thickness: 25,
-              blur: 20,
-              glassColor: LiquidGlassTheme.glassDark,
-              lightIntensity: 0.15,
-              saturation: 1,
-            ),
-            child: Stack(
-              key: _stackKey,
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(50),
-                    border: Border.all(
-                      color: Colors.grey.withValues(alpha: 0.2),
-                      width: 1.5,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Undo/Redo/History Controls - Only visible when no tool is selected
+            AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: widget.selectedTool == null ? 1.0 : 0.0,
+              child: IgnorePointer(
+                ignoring: widget.selectedTool != null,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: LiquidGlassLayer(
+                    settings: const LiquidGlassSettings(
+                      thickness: 25,
+                      blur: 20,
+                      glassColor: LiquidGlassTheme.glassDark,
+                      lightIntensity: 0.15,
+                      saturation: 1,
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(
-                      widget.tools.length,
-                      (index) => _ToolButton(
-                        key: _keys[index],
-                        icon: widget.tools[index].icon,
-                        label: widget.tools[index].label,
-                        isSelected: _selectedIndex == index,
-                        onTap: () => _select(index),
+                    child: LiquidGlass(
+                      shape: LiquidRoundedSuperellipse(borderRadius: 50),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(
+                            color: Colors.grey.withValues(alpha: 0.2),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: widget.canUndo ? widget.onUndo : null,
+                              icon: Icon(
+                                CupertinoIcons.arrow_uturn_left,
+                                size: 20,
+                                color: widget.canUndo
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: widget.canRedo ? widget.onRedo : null,
+                              icon: Icon(
+                                CupertinoIcons.arrow_uturn_right,
+                                size: 20,
+                                color: widget.canRedo
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: widget.onHistory,
+                              icon: const Icon(
+                                CupertinoIcons.clock,
+                                size: 20,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
+              ),
+            ),
 
-                AnimatedPositioned(
-                  duration: _isDragging
-                      ? Duration.zero
-                      : const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  left: _isDragging ? _dragX : _x,
-                  top: _isMoving ? 0 : 8,
-                  height: _isMoving ? 72 : 58,
-                  width: _width,
-                  child: GestureDetector(
-                    onHorizontalDragStart: (_) {
-                      setState(() {
-                        _isDragging = true;
-                        _dragX = _x;
-                      });
-                    },
-                    onHorizontalDragUpdate: (details) {
-                      setState(() {
-                        _dragX +=
-                            details.delta.dx *
-                            (1 / (1 + (_dragX - _x).abs() / 1000));
-                      });
+            Center(
+              child: LiquidGlassLayer(
+                settings: const LiquidGlassSettings(
+                  thickness: 25,
+                  blur: 20,
+                  glassColor: LiquidGlassTheme.glassDark,
+                  lightIntensity: 0.15,
+                  saturation: 1,
+                ),
+                child: Stack(
+                  key: _stackKey,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border.all(
+                          color: Colors.grey.withValues(alpha: 0.2),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(
+                          widget.tools.length,
+                          (index) => _ToolButton(
+                            key: _keys[index],
+                            icon: widget.tools[index].icon,
+                            label: widget.tools[index].label,
+                            isSelected: widget.selectedTool == widget.tools[index],
+                            onTap: () => _select(index),
+                          ),
+                        ),
+                      ),
+                    ),
 
-                      int hoverIndex = _getHoverIndex(_dragX);
+                    if (widget.selectedTool != null)
+                      AnimatedPositioned(
+                        duration: _isDragging
+                            ? Duration.zero
+                            : const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        left: _isDragging ? _dragX : _x,
+                        top: _isMoving ? 0 : 8,
+                        height: _isMoving ? 72 : 58,
+                        width: _width,
+                        child: GestureDetector(
+                          onHorizontalDragStart: (_) {
+                            setState(() {
+                              _isDragging = true;
+                              _dragX = _x;
+                            });
+                          },
+                          onHorizontalDragUpdate: (details) {
+                            setState(() {
+                              _dragX +=
+                                  details.delta.dx *
+                                  (1 / (1 + (_dragX - _x).abs() / 1000));
+                            });
 
-                      if (hoverIndex != -1 && hoverIndex != _lastHoverIndex) {
-                        _lastHoverIndex = hoverIndex;
-                        HapticFeedback.selectionClick();
-                      }
-                    },
+                            int hoverIndex = _getHoverIndex(_dragX);
 
-                    onHorizontalDragEnd: (_) {
-                      _isDragging = false;
-                      int nearestIndex = _getNearestButtonIndex(_dragX);
-                      setState(() {
-                        _lastHoverIndex = -1;
-                      });
-                      _select(nearestIndex);
-                    },
+                            if (hoverIndex != -1 && hoverIndex != _lastHoverIndex) {
+                              _lastHoverIndex = hoverIndex;
+                              HapticFeedback.selectionClick();
+                            }
+                          },
 
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 260),
-                      curve: Curves.easeOutCubic,
-                      child: LiquidStretch(
-                        stretch: _isMoving ? 3.0 : 1.2,
-                        child: LiquidGlass(
-                          shape: LiquidRoundedSuperellipse(borderRadius: 50),
-                          child: GlassGlow(
-                            glowRadius: _isMoving ? 2 : 1.4,
-                            glowColor: Colors.white.withValues(alpha: 0.12),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(50),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.15),
-                                  width: 0.4,
+                          onHorizontalDragEnd: (_) {
+                            _isDragging = false;
+                            int nearestIndex = _getNearestButtonIndex(_dragX);
+                            setState(() {
+                              _lastHoverIndex = -1;
+                            });
+                            _select(nearestIndex);
+                          },
+
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic,
+                            child: LiquidStretch(
+                              stretch: _isMoving ? 3.0 : 1.2,
+                              child: LiquidGlass(
+                                shape: LiquidRoundedSuperellipse(borderRadius: 50),
+                                child: GlassGlow(
+                                  glowRadius: _isMoving ? 2 : 1.4,
+                                  glowColor: Colors.white.withValues(alpha: 0.12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(50),
+                                      border: Border.all(
+                                        color: Colors.white.withValues(alpha: 0.15),
+                                        width: 0.4,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
