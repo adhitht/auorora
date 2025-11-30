@@ -1,0 +1,3 @@
+[submodule "frontend/assets/models/lama_dilated"]
+	path = frontend/assets/models/lama_dilated
+	url = https://huggingface.co/qualcomm/LaMa-Dilated

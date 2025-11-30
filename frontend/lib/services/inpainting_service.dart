@@ -1,37 +1,39 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
-import 'package:onnxruntime/onnxruntime.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:tflite_flutter/tflite_flutter.dart';
 
 class InpaintingService {
-  static const String _modelAssetPath = 'assets/models/migan_pipeline_v2.onnx';
+  static const String _modelAssetPath = 'assets/models/lama_dilated/LaMa-Dilated_float.tflite';
   static const int _inputSize = 512;
 
-  OrtSession? _session;
+  static const bool _enableAverageFill = true;
+  static const bool _enableBlur = true;
+  static const int _contextMargin = 50;
+  static const int _blurRadius = 4; 
+
+  Interpreter? _interpreter;
   bool _isInitialized = false;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      OrtEnv.instance.init();
-      
-      // Copy asset to temp file because ONNX Runtime usually needs a file path
-      final tempDir = await getTemporaryDirectory();
-      final modelFile = File('${tempDir.path}/migan_model.onnx');
-      
-      if (!await modelFile.exists()) {
-        debugPrint('InpaintingService: Copying model to ${modelFile.path}...');
-        final byteData = await rootBundle.load(_modelAssetPath);
-        await modelFile.writeAsBytes(byteData.buffer.asUint8List());
-      }
+      final options = InterpreterOptions();
+      // TODO: Check for better ways to optimize the model
+      // Add delegate with NPU????
+      if (Platform.isAndroid) options.addDelegate(GpuDelegateV2());
+      if (Platform.isIOS) options.addDelegate(GpuDelegate());
 
-      final sessionOptions = OrtSessionOptions();
-      _session = OrtSession.fromFile(modelFile, sessionOptions);
+      _interpreter = await Interpreter.fromAsset(_modelAssetPath, options: options);
       _isInitialized = true;
-      debugPrint('InpaintingService: ONNX Model loaded successfully');
+      debugPrint('InpaintingService: TFLite Model loaded successfully');
+      
+      final inputTensors = _interpreter!.getInputTensors();
+      final outputTensors = _interpreter!.getOutputTensors();
+      debugPrint('InpaintingService: Inputs: ${inputTensors.map((e) => e.shape).toList()}');
+      debugPrint('InpaintingService: Outputs: ${outputTensors.map((e) => e.shape).toList()}');
+
     } catch (e) {
       debugPrint('InpaintingService: Failed to load model: $e');
       rethrow;
@@ -47,7 +49,6 @@ class InpaintingService {
     try {
       final startTime = DateTime.now();
       
-      // 1. Prepare Image
       final imageBytes = await imageFile.readAsBytes();
       final image = img.decodeImage(imageBytes);
       if (image == null) return null;
@@ -56,7 +57,6 @@ class InpaintingService {
       final originalW = orientedImage.width;
       final originalH = orientedImage.height;
 
-      // Calculate scale to fit in 512x512 maintaining aspect ratio
       double scale = 1.0;
       if (originalW > originalH) {
         scale = _inputSize / originalW;
@@ -69,7 +69,6 @@ class InpaintingService {
 
       debugPrint('InpaintingService: Original ${originalW}x$originalH, Target ${targetW}x$targetH');
 
-      // Resize image to fit
       final resizedImage = img.copyResize(
         orientedImage,
         width: targetW,
@@ -77,7 +76,6 @@ class InpaintingService {
         interpolation: img.Interpolation.linear,
       );
 
-      // 2. Prepare Mask
       final maskImage = img.Image.fromBytes(
         width: _inputSize,
         height: _inputSize,
@@ -92,83 +90,151 @@ class InpaintingService {
         interpolation: img.Interpolation.linear,
       );
 
-      // 3. Create Padded Inputs (512x512)
+      // Average Color Fill
+      if (_enableAverageFill) {
+        int minX = targetW, minY = targetH, maxX = 0, maxY = 0;
+        bool hasMask = false;
+
+        // Find bounding box of the mask
+        for (int y = 0; y < targetH; y++) {
+          for (int x = 0; x < targetW; x++) {
+            if (resizedMask.getPixel(x, y).r > 127) {
+              hasMask = true;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        if (hasMask) {
+          // Expand bounding box to get context
+          final contextMinX = (minX - _contextMargin).clamp(0, targetW - 1);
+          final contextMaxX = (maxX + _contextMargin).clamp(0, targetW - 1);
+          final contextMinY = (minY - _contextMargin).clamp(0, targetH - 1);
+          final contextMaxY = (maxY + _contextMargin).clamp(0, targetH - 1);
+
+          double totalR = 0, totalG = 0, totalB = 0;
+          int count = 0;
+
+          for (int y = contextMinY; y <= contextMaxY; y++) {
+            for (int x = contextMinX; x <= contextMaxX; x++) {
+              if (resizedMask.getPixel(x, y).r <= 127) {
+                final pixel = resizedImage.getPixel(x, y);
+                totalR += pixel.r;
+                totalG += pixel.g;
+                totalB += pixel.b;
+                count++;
+              }
+            }
+          }
+
+          int avgR = 127, avgG = 127, avgB = 127;
+          if (count > 0) {
+            avgR = (totalR / count).round();
+            avgG = (totalG / count).round();
+            avgB = (totalB / count).round();
+          }
+
+          for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+              if (resizedMask.getPixel(x, y).r > 127) {
+                resizedImage.setPixelRgb(x, y, avgR, avgG, avgB);
+              }
+            }
+          }
+        }
+      }
+
+      // Gaussian Blur
+      if (_enableBlur) {
+        final blurredImage = img.gaussianBlur(resizedImage, radius: _blurRadius);
+
+        for (int y = 0; y < targetH; y++) {
+          for (int x = 0; x < targetW; x++) {
+            final maskVal = resizedMask.getPixel(x, y).r;
+            if (maskVal > 127) {
+              resizedImage.setPixel(x, y, blurredImage.getPixel(x, y));
+            }
+          }
+        }
+      }
+
       final padX = (_inputSize - targetW) ~/ 2;
       final padY = (_inputSize - targetH) ~/ 2;
 
-      // Prepare Float32 Lists for ONNX
-      // Shape: [1, 3, 512, 512] for image
-      // Shape: [1, 1, 512, 512] for mask
-      
-      final Float32List imageFloatList = Float32List(1 * 3 * _inputSize * _inputSize);
-      final Float32List maskFloatList = Float32List(1 * 1 * _inputSize * _inputSize);
+      final inputImage = List.generate(
+        1, 
+        (i) => List.generate(
+          _inputSize, 
+          (y) => List.generate(
+            _inputSize, 
+            (x) => List.filled(3, 0.0),
+          ),
+        ),
+      );
+
+      final inputMask = List.generate(
+        1, 
+        (i) => List.generate(
+          _inputSize, 
+          (y) => List.generate(
+            _inputSize, 
+            (x) => List.filled(1, 0.0),
+          ),
+        ),
+      );
 
       for (int y = 0; y < _inputSize; y++) {
         for (int x = 0; x < _inputSize; x++) {
-          double r = 0.5, g = 0.5, b = 0.5; // Padding
-          double m = 0.0; // Mask padding (0 = valid)
-
+          double r = 0.5, g = 0.5, b = 0.5;
+          double m = 1.0;
+          
           if (x >= padX && x < padX + targetW && y >= padY && y < padY + targetH) {
             final pixel = resizedImage.getPixel(x - padX, y - padY);
-            // Normalize to 0..1
             r = pixel.r / 255.0;
             g = pixel.g / 255.0;
             b = pixel.b / 255.0;
             
             final maskPixel = resizedMask.getPixel(x - padX, y - padY);
-            // Mask: 1 for hole, 0 for valid
             m = maskPixel.r > 127 ? 1.0 : 0.0;
+          } else {
+             m = 0.0;
           }
 
-          // NCHW layout
-          // Image
-          imageFloatList[0 * _inputSize * _inputSize + y * _inputSize + x] = r;
-          imageFloatList[1 * _inputSize * _inputSize + y * _inputSize + x] = g;
-          imageFloatList[2 * _inputSize * _inputSize + y * _inputSize + x] = b;
+          inputImage[0][y][x][0] = r;
+          inputImage[0][y][x][1] = g;
+          inputImage[0][y][x][2] = b;
           
-          // Mask
-          maskFloatList[0 * _inputSize * _inputSize + y * _inputSize + x] = m;
+          inputMask[0][y][x][0] = m;
         }
       }
 
-      // Create Tensors
-      final imageTensor = OrtValueTensor.createTensorWithDataList(
-        imageFloatList,
-        [1, 3, _inputSize, _inputSize],
-      );
-      
-      final maskTensor = OrtValueTensor.createTensorWithDataList(
-        maskFloatList,
-        [1, 1, _inputSize, _inputSize],
+      final outputBuffer = List.generate(
+        1, 
+        (i) => List.generate(
+          _inputSize, 
+          (y) => List.generate(
+            _inputSize, 
+            (x) => List.filled(3, 0.0),
+          ),
+        ),
       );
 
-      // Run Inference
-      final runOptions = OrtRunOptions();
-      
-      // Using standard names 'img' and 'mask' based on common MI-GAN exports
-      final inputs = {
-        'image': imageTensor,
-        'mask': maskTensor,
-      };
-      
-      final outputs = _session!.run(runOptions, inputs);
+      final inputs = [inputImage, inputMask];
+      final outputs = {0: outputBuffer};
+
+      _interpreter!.runForMultipleInputs(inputs, outputs);
       debugPrint('InpaintingService: Inference run complete');
-      
-      // Process Output
-      final outputTensor = outputs[0];
-      if (outputTensor == null) throw Exception('No output produced');
-      
-      // Handle output - assuming it returns the structured list [1][3][512][512]
-      final outputList = outputTensor.value as List<List<List<List<double>>>>; 
-      final outBatch = outputList[0]; // [3][512][512]
       
       final outputImage = img.Image(width: targetW, height: targetH);
 
       for (int y = 0; y < targetH; y++) {
         for (int x = 0; x < targetW; x++) {
-          double r = outBatch[0][y + padY][x + padX];
-          double g = outBatch[1][y + padY][x + padX];
-          double b = outBatch[2][y + padY][x + padX];
+          final r = outputBuffer[0][y + padY][x + padX][0];
+          final g = outputBuffer[0][y + padY][x + padX][1];
+          final b = outputBuffer[0][y + padY][x + padX][2];
           
           outputImage.setPixelRgb(
             x,
@@ -189,7 +255,6 @@ class InpaintingService {
         interpolation: img.Interpolation.linear,
       );
 
-      // Composite back onto original
       final fullSizeMask = img.copyResize(
         img.Image.fromBytes(
           width: _inputSize,
@@ -208,9 +273,9 @@ class InpaintingService {
         for (int x = 0; x < originalW; x++) {
           final maskVal = fullSizeMask.getPixel(x, y).r;
           if (maskVal > 100) { 
-             // Use inpainted
+             final inpaintedPixel = inpaintedResized.getPixel(x, y);
+             orientedImage.setPixel(x, y, inpaintedPixel);
           } else {
-             // Use original
              final origPixel = orientedImage.getPixel(x, y);
              inpaintedResized.setPixel(x, y, origPixel);
           }
@@ -218,12 +283,6 @@ class InpaintingService {
       }
 
       debugPrint('InpaintingService: Inference took ${DateTime.now().difference(startTime).inMilliseconds}ms');
-      
-      // Cleanup
-      imageTensor.release();
-      maskTensor.release();
-      outputTensor.release();
-      runOptions.release();
       
       return Uint8List.fromList(img.encodePng(inpaintedResized));
 
@@ -234,8 +293,7 @@ class InpaintingService {
   }
 
   void dispose() {
-    _session?.release();
-    OrtEnv.instance.release();
+    _interpreter?.close();
     _isInitialized = false;
   }
 }
