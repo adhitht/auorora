@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../theme/liquid_glass_theme.dart';
 import '../services/image_processing_service.dart';
@@ -342,6 +343,30 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
+  Future<void> _handleShare() async {
+    if (_isProcessing || _currentPhotoFile == null) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final xFile = XFile(_currentPhotoFile!.path);
+      await Share.shareXFiles([xFile], text: 'Edited with Apex Editor');
+    } catch (e) {
+      if (mounted) {
+        debugPrint('Failed to share photo: ${e.toString()}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to share photo: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -351,10 +376,10 @@ class _EditorScreenState extends State<EditorScreen>
           Column(
             children: [
               // Top app bar (keep existing API)
-              // Top app bar (keep existing API)
               EditorTopBar(
                 onBackTap: _navigateBack,
                 onSaveTap: _savePhoto,
+                onShareTap: _handleShare,
                 isSaving: _isProcessing,
               ),
 
