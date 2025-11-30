@@ -15,8 +15,6 @@ class RelightingService {
     final host = dotenv.env['GRPC_HOST'] ?? 'localhost';
     final port = dotenv.env['GRPC_PORT'] ?? '50051';
 
-    debugPrint('GRPC Host: $host');
-    debugPrint('GRPC Port: $port');
 
     _channel = ClientChannel(
       host,
@@ -38,6 +36,7 @@ class RelightingService {
       if (lights != null) {
         final lightsRequest = LightsRequest(lights: lights);
         final jsonString = lightsRequest.toRawJson();
+        debugPrint('JSON String: $jsonString');
         request.jsonData = utf8.encode(jsonString);
       }
 

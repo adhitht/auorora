@@ -6,6 +6,9 @@ from PIL import Image
 
 from app import relighting_pb2
 from app import relighting_pb2_grpc
+from app import pose_pb2
+from app import pose_pb2_grpc
+
 from app.ml_models import RelightingModel
 from app.model.lights_model import LightsRequest
 
@@ -40,3 +43,23 @@ class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
             context.set_details(str(e))
             context.set_code(grpc.StatusCode.INTERNAL)
             return relighting_pb2.RelightResponse()
+
+class PoseChangingService(pose_pb2_grpc.PoseChangingServiceServicer):
+    def ChangePose(self, request, context):
+        try:
+            image_data = request.image_data
+            image = Image.open(io.BytesIO(image_data))
+            
+            # TODO: Implement actual pose changing logic using request.new_skeleton_data
+            # For now, we just return the image as is to verify the pipeline
+            
+            output_buffer = io.BytesIO()
+            image.save(output_buffer, format='PNG')
+            processed_image_data = output_buffer.getvalue()
+            
+            return pose_pb2.PoseResponse(processed_image_data=processed_image_data)
+        except Exception as e:
+            print(f"Error processing pose request: {e}")
+            context.set_details(str(e))
+            context.set_code(grpc.StatusCode.INTERNAL)
+            return pose_pb2.PoseResponse()

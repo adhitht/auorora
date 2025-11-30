@@ -12,9 +12,13 @@ mkdir -p $PYTHON_OUT_DIR
     -I $PROTO_DIR \
     --python_out=$PYTHON_OUT_DIR \
     --grpc_python_out=$PYTHON_OUT_DIR \
-    $PROTO_DIR/relighting.proto
+    $PROTO_DIR/*.proto
 
-sed -i 's/import relighting_pb2 as/from . import relighting_pb2 as/g' $PYTHON_OUT_DIR/relighting_pb2_grpc.py
+for file in $PYTHON_OUT_DIR/*_pb2_grpc.py; do
+    [ -e "$file" ] || continue
+    
+    sed -i -E 's/^import (.*_pb2) as/from . import \1 as/g' "$file"
+done
 
 echo "Generating gRPC Dart files..."
 
@@ -30,7 +34,7 @@ mkdir -p $DART_OUT_DIR
     -I $PROTO_DIR \
     --plugin=protoc-gen-dart=$(which protoc-gen-dart) \
     --dart_out=grpc:$DART_OUT_DIR \
-    $PROTO_DIR/relighting.proto
+    $PROTO_DIR/*.proto
 
 echo "Success! Files generated:"
 echo "Python: $PYTHON_OUT_DIR"

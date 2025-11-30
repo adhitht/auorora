@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package pose;
+
+service PoseChangingService {
+    rpc ChangePose (PoseRequest) returns (PoseResponse);
+}
+
+message PoseRequest {
+    bytes image_data = 1;
+    bytes new_skeleton_data = 2;
+}
+
+message PoseResponse {
+    bytes processed_image_data = 1;
+}
