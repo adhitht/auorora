@@ -5,6 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../services/photo_picker_service.dart';
 import '../theme/liquid_glass_theme.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import 'editor_screen.dart';
 
 /// Gallery home screen with liquid glass effects
@@ -18,6 +22,50 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final PhotoPickerService _photoPickerService = PhotoPickerService();
   final List<File> _photos = [];
+  List<String> _demoAssets = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDemoAssets();
+  }
+
+  Future<void> _loadDemoAssets() async {
+    try {
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
+      debugPrint('Manifest content loaded: ${manifestContent.length} chars');
+      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+      debugPrint('Manifest keys: ${manifestMap.keys.length}');
+      
+      final demoAssets = manifestMap.keys
+            .where((String key) => key.startsWith('assets/demo/') && 
+                (key.endsWith('.jpg') || key.endsWith('.jpeg') || key.endsWith('.png')))
+            .toList();
+      
+      debugPrint('Found demo assets: ${demoAssets.length}');
+      demoAssets.forEach((asset) => debugPrint('Demo asset: $asset'));
+
+      setState(() {
+        _demoAssets = demoAssets;
+      });
+    } catch (e) {
+      debugPrint('Error loading demo assets: $e');
+    }
+  }
+
+  Future<void> _loadAssetAsFile(String assetPath) async {
+    try {
+      final byteData = await rootBundle.load(assetPath);
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/${path.basename(assetPath)}');
+      await tempFile.writeAsBytes(byteData.buffer.asUint8List());
+      
+      if (!mounted) return;
+      _openEditor(tempFile);
+    } catch (e) {
+      debugPrint('Error loading asset as file: $e');
+    }
+  }
 
   Future<void> _handleAddPhoto() async {
     final File? photoFile = await _photoPickerService.pickPhoto();
@@ -84,61 +132,126 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // Gallery grid or empty state
               Expanded(
-                child: _photos.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              CupertinoIcons.photo_on_rectangle,
-                              size: 64,
-                              color: Colors.white.withOpacity(0.3),
+                child: CustomScrollView(
+                  slivers: [
+                    if (_demoAssets.isNotEmpty) ...[
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Text(
+                            'Demo Images',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No photos yet',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.white.withOpacity(0.6),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Tap the button below to add photos',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.white.withOpacity(0.4),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                      )
-                    : GridView.builder(
-                        padding: const EdgeInsets.all(16),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              crossAxisSpacing: 8,
-                              mainAxisSpacing: 8,
-                            ),
-                        itemCount: _photos.length,
-                        itemBuilder: (context, index) {
-                          return _PhotoTile(
-                            photo: _photos[index],
-                            onTap: () => _openEditor(_photos[index]),
-                            onLongPress: () {
-                              HapticFeedback.heavyImpact();
-                              _showDeleteDialog(context, index);
-                            },
-                          );
-                        },
                       ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final assetPath = _demoAssets[index];
+                              return _PhotoTile(
+                                key: ValueKey(assetPath),
+                                imageProvider: AssetImage(assetPath),
+                                onTap: () => _loadAssetAsFile(assetPath),
+                                onLongPress: () {},
+                                isLocal: false,
+                              );
+                            },
+                            childCount: _demoAssets.length,
+                          ),
+                        ),
+                      ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                    ],
+
+                    if (_photos.isNotEmpty) ...[
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                          child: Text(
+                            'Your Photos',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              return _PhotoTile(
+                                key: ValueKey(_photos[index].path),
+                                imageProvider: FileImage(_photos[index]),
+                                onTap: () => _openEditor(_photos[index]),
+                                onLongPress: () {
+                                  HapticFeedback.heavyImpact();
+                                  _showDeleteDialog(context, index);
+                                },
+                                isLocal: true,
+                              );
+                            },
+                            childCount: _photos.length,
+                          ),
+                        ),
+                      ),
+                    ] else if (_demoAssets.isEmpty) ...[
+                      SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                CupertinoIcons.photo_on_rectangle,
+                                size: 64,
+                                color: Colors.white.withOpacity(0.3),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No photos yet',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white.withOpacity(0.6),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Tap the button below to add photos',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withOpacity(0.4),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  ],
+                ),
               ),
 
-              // Bottom button to add photos
               Padding(
                 padding: const EdgeInsets.only(bottom: 32, top: 16),
                 child: _LiquidGlassButton(onTap: _handleAddPhoto),
@@ -152,14 +265,19 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _PhotoTile extends StatelessWidget {
-  final File photo;
+  final ImageProvider imageProvider;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final bool isLocal;
+  final String? label;
 
   const _PhotoTile({
-    required this.photo,
+    super.key,
+    required this.imageProvider,
     required this.onTap,
     required this.onLongPress,
+    this.isLocal = true,
+    this.label,
   });
 
   @override
@@ -188,7 +306,34 @@ class _PhotoTile extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.file(photo, fit: BoxFit.cover),
+                  Image(image: imageProvider, fit: BoxFit.cover),
+                  if (label != null)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Text(
+                          label!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(
