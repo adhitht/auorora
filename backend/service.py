@@ -9,10 +9,11 @@ from . import relighting_pb2_grpc
 from . import pose_pb2
 from . import pose_pb2_grpc
 
-from .ml_models import RelightingModel
+from .ml_models import RelightingModel, PoseCorrectionPipeline
 from .model.lights_model import LightsRequest
 
 model_instance = RelightingModel()
+pose_pipeline = PoseCorrectionPipeline()
 
 class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
     def Relight(self, request, context):
@@ -50,11 +51,25 @@ class PoseChangingService(pose_pb2_grpc.PoseChangingServiceServicer):
             image_data = request.image_data
             image = Image.open(io.BytesIO(image_data))
             
-            # TODO: Implement actual pose changing logic using request.new_skeleton_data
-            # For now, we just return the image as is to verify the pipeline
+            offset_config = []
+            if request.new_skeleton_data:
+                try:
+                    json_str = request.new_skeleton_data.decode('utf-8')
+                    offset_config = json.loads(json_str)
+                    print(f"Received offset config: {offset_config}")
+                except Exception as e:
+                    print(f"Error parsing new_skeleton_data: {e}")
+                    raise ValueError("Invalid skeleton data format")
+
+            if not offset_config:
+                 # If no config, return original image
+                 print("No offset config provided, returning original image")
+                 processed_image = image
+            else:
+                processed_image = pose_pipeline.process_request(image, offset_config)
             
             output_buffer = io.BytesIO()
-            image.save(output_buffer, format='PNG')
+            processed_image.save(output_buffer, format='PNG')
             processed_image_data = output_buffer.getvalue()
             
             return pose_pb2.PoseResponse(processed_image_data=processed_image_data)
