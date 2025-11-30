@@ -12,7 +12,7 @@ from . import pose_pb2_grpc
 from .ml_models import RelightingModel, PoseCorrectionPipeline
 from .model.lights_model import LightsRequest
 
-model_instance = RelightingModel()
+relight_pipeline = RelightingModel()
 pose_pipeline = PoseCorrectionPipeline()
 
 class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
@@ -25,13 +25,16 @@ class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
             if request.json_data:
                 try:
                     lights_request = LightsRequest.model_validate_json(request.json_data)
-                    print(f"Received {len(lights_request.lights)} lights")
-                    for light in lights_request.lights:
-                        print(f"Light: {light}")
+                    lightmap = lights_request.lights
                 except Exception as e:
                     print(f"Error parsing json_data: {e}")
+            
+            if request.mask_data:
+                mask = Image.open(io.BytesIO(request.mask_data))
+            else:
+                mask = None
 
-            processed_image = model_instance.predict(image, lightmap)
+            processed_image = relight_pipeline.predict(image, mask, lights_config=lightmap)
             
             output_buffer = io.BytesIO()
             processed_image.save(output_buffer, format='PNG')
