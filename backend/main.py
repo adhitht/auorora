@@ -2,9 +2,9 @@ import grpc
 from concurrent import futures
 import time
 
-from app import relighting_pb2_grpc
-from app import pose_pb2_grpc
-from app.service import RelightingService, PoseChangingService
+from . import relighting_pb2_grpc
+from . import pose_pb2_grpc
+from .service import RelightingService, PoseChangingService
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

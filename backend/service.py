@@ -4,13 +4,13 @@ import json
 import numpy as np
 from PIL import Image
 
-from app import relighting_pb2
-from app import relighting_pb2_grpc
-from app import pose_pb2
-from app import pose_pb2_grpc
+from . import relighting_pb2
+from . import relighting_pb2_grpc
+from . import pose_pb2
+from . import pose_pb2_grpc
 
-from app.ml_models import RelightingModel
-from app.model.lights_model import LightsRequest
+from .ml_models import RelightingModel
+from .model.lights_model import LightsRequest
 
 model_instance = RelightingModel()
 
