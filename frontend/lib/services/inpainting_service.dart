@@ -7,10 +7,10 @@ class InpaintingService {
   static const String _modelAssetPath = 'assets/models/lama_dilated/LaMa-Dilated_float.tflite';
   static const int _inputSize = 512;
 
-  static const bool _enableAverageFill = true;
+  static const bool _enableAverageFill = false;
   static const bool _enableBlur = true;
   static const int _contextMargin = 50;
-  static const int _blurRadius = 4; 
+  static const int _blurRadius = 21; 
 
   Interpreter? _interpreter;
   bool _isInitialized = false;
