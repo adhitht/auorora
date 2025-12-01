@@ -369,18 +369,22 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
 
   List<Light> _generateLightsFromStrokes() {
     return _lightPaintStrokes.map((stroke) {
-      final colorHex = '#${stroke.color.toARGB32().toRadixString(16).substring(2).padLeft(6, '0')}';
+      final colorHex =
+          '#${stroke.color.toARGB32().toRadixString(16).substring(2).padLeft(6, '0')}';
 
-      final temperature = (stroke.brightness * 10000).toInt().clamp(1000, 10000);
+      final temperature = (stroke.brightness * 10000).toInt().clamp(
+        1000,
+        10000,
+      );
 
       if (stroke.type == LightPaintType.spot) {
         final centerPoint = stroke.points.last;
-        
+
         return Light(
           geometry: LightGeometry(
             type: 'SingleLightSource',
             center: [centerPoint.dx, centerPoint.dy],
-            radius: stroke.width / 1000.0, 
+            radius: stroke.width / 1000.0,
           ),
           properties: LightProperties(
             temperature: temperature,
@@ -1043,7 +1047,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                                 _isLightPaintSelecting =
                                     false; // Disable light paint selection if switching
                                 if (!_isSegmentationActive) {
-                                  _maskImage = null;
+                                  // _maskImage = null;
                                 }
                               });
                             },
@@ -1291,8 +1295,8 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                               _isLightPaintActive = false;
                               _selectedTool = null;
                               _selectedObjectBounds = null;
-                              _maskImage =
-                                  null; // Remove feedback after applying
+                              // _maskImage =
+                              //     null; // Remove feedback after applying
                             });
                             widget.onControlPanelReady?.call(buildControlPanel);
                           },
