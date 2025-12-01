@@ -21,7 +21,7 @@ import 'pose_visualization_overlay.dart';
 import 'segmented_cutout_view.dart';
 import 'segmentation_feedback_overlay.dart';
 import 'loading_indicator.dart';
-import '../services/inpainting_service.dart';
+import '../services/lama_fp16_inpainting_service.dart';
 
 enum ReframeMode { initial, segmenting, segmented, moving, posing }
 
@@ -60,7 +60,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
   final PoseDetectionService _poseService = PoseDetectionService();
   final SegmentationService _segmentationService = SegmentationService();
-  final InpaintingService _inpaintingService = InpaintingService();
+  final LamaFP16InpaintingService _inpaintingService = LamaFP16InpaintingService();
   final PoseChangingService _poseChangingService = PoseChangingService();
 
   bool _isPoseServiceInitialized = false;

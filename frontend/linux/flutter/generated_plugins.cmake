@@ -8,7 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  onnxruntime
+  onnxruntime_v2
   tflite_flutter
 )
 
