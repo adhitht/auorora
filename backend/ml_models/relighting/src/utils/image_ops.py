@@ -206,7 +206,8 @@ def composite_with_shadows(depth_estimator, original_pil, relit_pil, mask, meta,
     first_target_envir_map, second_target_envir_map = read_hdri_map(
         hdri_path, target_res=(cfg.TARGET_RES, cfg.TARGET_RES), rot_angle=rot_angle
     )
-    az, alt = get_light_direction_from_hdr(second_target_envir_map, applied_rot_angle=rot_angle)
+    # az, alt = get_light_direction_from_hdr(second_target_envir_map, applied_rot_angle=rot_angle)
+    az, alt = get_light_direction_from_hdr(second_target_envir_map)
 
     #shadow strength
     light_source_strength = estimate_light_source_strength(second_target_envir_map)
