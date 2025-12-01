@@ -88,5 +88,4 @@ def relight_object(pipe, image_path, mask, hdri_path,
 
 
 def init_models():
-
     return build_pipeline()

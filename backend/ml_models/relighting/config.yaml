@@ -9,7 +9,7 @@ background_color: 1.0
 # Neural Gaffer Configuration
 neural_gaffer:
   base_model_id: "kxic/zero123-xl"        # Official base model
-  checkpoint_dir: "neural_gaffer_res256/checkpoint-80000"
+  checkpoint_dir: "./neural_gaffer_res256/checkpoint-80000"
 
 # Environment Map Generator Configuration
 env_map:
