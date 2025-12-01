@@ -15,13 +15,14 @@ import 'package:image/image.dart' as img;
 import '../theme/liquid_glass_theme.dart';
 import '../services/segmentation_service.dart';
 import '../services/pose_detection_service.dart';
-import '../services/pose_changing_service.dart'; // Added import
+import '../services/pose_changing_service.dart';
 import '../models/pose_landmark.dart';
 import 'pose_visualization_overlay.dart';
 import 'segmented_cutout_view.dart';
 import 'segmentation_feedback_overlay.dart';
 import 'loading_indicator.dart';
 import '../services/lama_fp16_inpainting_service.dart';
+import '../services/rainnet_harmonization_service.dart';
 
 enum ReframeMode { initial, segmenting, segmented, moving, posing }
 
@@ -61,6 +62,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   final PoseDetectionService _poseService = PoseDetectionService();
   final SegmentationService _segmentationService = SegmentationService();
   final LamaFP16InpaintingService _inpaintingService = LamaFP16InpaintingService();
+  final RainnetHarmonizationService _harmonizationService = RainnetHarmonizationService();
   final PoseChangingService _poseChangingService = PoseChangingService();
 
   bool _isPoseServiceInitialized = false;
@@ -110,6 +112,12 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     } catch (e) {
       debugPrint('Failed to initialize inpainting service: $e');
     }
+
+    try {
+      await _harmonizationService.initialize();
+    } catch (e) {
+      debugPrint('Failed to initialize harmonization service: $e');
+    }
   }
 
   Future<void> _loadImageSize() async {
@@ -146,6 +154,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     _poseService.dispose();
     _segmentationService.dispose();
     _inpaintingService.dispose();
+    _harmonizationService.dispose();
     _poseChangingService.shutdown();
     super.dispose();
   }
@@ -327,7 +336,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     }
   }
 
-  Uint8List _serializePoseData(PoseDetectionResult result) {
+  Uint8List _serializePoseData(PoseDetectionResult result, int width, int height) {
     const types = [
       PoseLandmarkType.rightWrist,
       PoseLandmarkType.rightElbow,
@@ -342,7 +351,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     for (final type in types) {
       final landmark = result.getLandmark(type);
       if (landmark != null) {
-        jsonMap.add([landmark.x, landmark.y]);
+        jsonMap.add([landmark.x * width, landmark.y * height]);
       }
     }
 
@@ -366,7 +375,13 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
       if (_mode == ReframeMode.posing && _poseResult != null) {
         final imageBytes = await widget.imageFile.readAsBytes();
-        final skeletonBytes = _serializePoseData(_poseResult!);
+        final image = img.decodeImage(imageBytes);
+        if (image == null) {
+          throw Exception("Failed to decode image for pose change.");
+        }
+        final width = image.width;
+        final height = image.height;
+        final skeletonBytes = _serializePoseData(_poseResult!, width, height);
 
         final resultBytes = await _poseChangingService.changePose(
           imageBytes,
@@ -414,6 +429,47 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
               dstX: targetX,
               dstY: targetY,
             );
+
+            // ---- HARMONIZATION ----
+            // Create a mask for the cutout at the new position
+            final fullMask = img.Image(width: image.width, height: image.height);
+            // Fill with black (0)
+            img.fill(fullMask, color: img.ColorRgb8(0, 0, 0));
+            
+            // Draw the cutout shape (white) onto the mask
+            // We can use the alpha channel of cutoutImage to determine the mask
+            for (int y = 0; y < cutoutImage.height; y++) {
+              for (int x = 0; x < cutoutImage.width; x++) {
+                final pixel = cutoutImage.getPixel(x, y);
+                if (pixel.a > 0) {
+                  final dx = targetX + x;
+                  final dy = targetY + y;
+                  if (dx >= 0 && dx < fullMask.width && dy >= 0 && dy < fullMask.height) {
+                    fullMask.setPixelRgb(dx, dy, 255, 255, 255);
+                  }
+                }
+              }
+            }
+
+            final harmonizedBytes = await _harmonizationService.harmonize(image, fullMask);
+            
+            if (harmonizedBytes != null) {
+              final harmonizedImg = img.decodeImage(harmonizedBytes);
+              if (harmonizedImg != null) {
+                // Blend harmonized object back into the composite image
+                // We use the mask to select pixels from harmonizedImg
+                for (int y = 0; y < image.height; y++) {
+                  for (int x = 0; x < image.width; x++) {
+                    final m = fullMask.getPixel(x, y).r;
+                    if (m > 128) { // If mask is white (object)
+                      final hPx = harmonizedImg.getPixel(x, y);
+                      image.setPixel(x, y, hPx);
+                    }
+                  }
+                }
+              }
+            }
+            // -----------------------
 
             // Encode and save
             await newFile.writeAsBytes(img.encodePng(image));
