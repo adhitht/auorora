@@ -285,10 +285,21 @@ def draw_geometry(img_canvas, geometry, width, height, color_bgr, opacity=1.0, e
     Helper to draw primitives (Lines or Circles) onto a canvas, for environment map generation.
     It is an inplace operation
     """
-    geo_type = geometry.get('type')
+    # Handle both object attributes and dictionary access
+    if hasattr(geometry, 'type'):
+        geo_type = geometry.type
+    elif isinstance(geometry, dict):
+        geo_type = geometry.get('type')
+    else:
+        return  # Skip if neither object nor dict
 
     if geo_type == "LineString":
-        coords = geometry['coordinates']
+        if hasattr(geometry, 'coordinates'):
+            coords = geometry.coordinates
+        elif isinstance(geometry, dict):
+            coords = geometry['coordinates']
+        else:
+            return
         pts = np.array([[int(p[0] * width), int(p[1] * height)] for p in coords], np.int32)
         pts = pts.reshape((-1, 1, 2))
 
@@ -297,11 +308,17 @@ def draw_geometry(img_canvas, geometry, width, height, color_bgr, opacity=1.0, e
         cv2.polylines(img_canvas, [pts], isClosed=False, color=color_bgr, thickness=thickness)
 
     elif geo_type == "SingleLightSource":
-        c = geometry['center']
+        if hasattr(geometry, 'center'):
+            c = geometry.center
+            raw_radius = geometry.radius if hasattr(geometry, 'radius') else 5
+        elif isinstance(geometry, dict):
+            c = geometry['center']
+            raw_radius = geometry.get('radius', 5)
+        else:
+            return
         cx, cy = int(c[0] * width), int(c[1] * height)
 
         #scaling factor : hyperparmeter
-        raw_radius = geometry.get('radius', 5)
         radius = int(raw_radius * 5) + extra_thickness
 
         #circle
@@ -317,23 +334,43 @@ def render_multi_light_layer(width, height, lights_list):
     core_layer = np.zeros((height, width, 3), dtype=np.float32)
 
     for light in lights_list:
-        props = light.get('properties', {})
-        geom = light.get('geometry', {})
+        # Handle both object attributes and dictionary access
+        if hasattr(light, 'properties'):
+            props = light.properties
+            geom = light.geometry
+        elif isinstance(light, dict):
+            props = light.get('properties', {})
+            geom = light.get('geometry', {})
+        else:
+            continue
 
         #determine the color
-        color_value = props.get('color', (1.0, 1.0, 1.0))
+        if hasattr(props, 'color'):
+            color_value = props.color
+        elif isinstance(props, dict):
+            color_value = props.get('color', (1.0, 1.0, 1.0))
+        else:
+            color_value = (1.0, 1.0, 1.0)
 
         if isinstance(color_value, str):
-            COLOR_MAP = {
-                "red": (1.0, 0.0, 0.0),
-                "green": (0.0, 1.0, 0.0),
-                "blue": (0.0, 0.0, 1.0),
-                "white": (1.0, 1.0, 1.0),
-                "orange": (1.0, 0.5, 0.0),
-                "yellow": (1.0, 1.0, 0.0),
-                "purple": (0.5, 0.0, 0.5)
-            }
-            r, g, b = COLOR_MAP.get(color_value.lower(), (1.0, 1.0, 1.0))
+            # Handle hex color codes
+            if color_value.startswith('#'):
+                hex_color = color_value.lstrip('#')
+                r = int(hex_color[0:2], 16) / 255.0
+                g = int(hex_color[2:4], 16) / 255.0
+                b = int(hex_color[4:6], 16) / 255.0
+            else:
+                # Handle named colors
+                COLOR_MAP = {
+                    "red": (1.0, 0.0, 0.0),
+                    "green": (0.0, 1.0, 0.0),
+                    "blue": (0.0, 0.0, 1.0),
+                    "white": (1.0, 1.0, 1.0),
+                    "orange": (1.0, 0.5, 0.0),
+                    "yellow": (1.0, 1.0, 0.0),
+                    "purple": (0.5, 0.0, 0.5)
+                }
+                r, g, b = COLOR_MAP.get(color_value.lower(), (1.0, 1.0, 1.0))
         else:
             r, g, b = color_value
 
