@@ -37,7 +37,7 @@ class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
             processed_image = relight_pipeline.predict(image, mask, lights_config=lightmap)
             
             output_buffer = io.BytesIO()
-            processed_image.save(output_buffer, format='PNG')
+            processed_image[0].save(output_buffer, format='PNG')
             # processed_image.save(output_buffer, format=save_format)
             processed_image_data = output_buffer.getvalue()
             
