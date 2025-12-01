@@ -69,7 +69,7 @@ class PoseChangingService(pose_pb2_grpc.PoseChangingServiceServicer):
                  print("No offset config provided, returning original image")
                  processed_image = image
             else:
-                processed_image = pose_pipeline.process_request(image, offset_config)
+                processed_image = pose_pipeline.process_request(image_data, offset_config)
             
             output_buffer = io.BytesIO()
             processed_image.save(output_buffer, format='PNG')
