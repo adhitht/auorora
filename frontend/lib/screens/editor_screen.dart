@@ -475,11 +475,16 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               // Top app bar (keep existing API)
               EditorTopBar(
-                onBackTap: _navigateBack,
-                onSaveTap: _savePhoto,
-                onShareTap: _handleShare,
-                isSaving: _isProcessing,
-              ),
+            onBackTap: _navigateBack,
+            onSaveTap: _savePhoto,
+            onShareTap: _handleShare,
+            isSaving: _isProcessing,
+            onUndo: _handleUndo,
+            onRedo: _handleRedo,
+            onHistory: _showHistoryViewer,
+            canUndo: _historyManager.canUndo,
+            canRedo: _historyManager.canRedo,
+          ),
 
               Expanded(child: _buildPhotoArea()),
 
@@ -564,11 +569,6 @@ class _EditorScreenState extends State<EditorScreen>
               detectedTags: _detectedTags,
               dismissedSuggestions: _dismissedSuggestions,
               onSuggestionSelected: _onSuggestionSelected,
-              onUndo: _handleUndo,
-              onRedo: _handleRedo,
-              onHistory: _showHistoryViewer,
-              canUndo: _historyManager.canUndo,
-              canRedo: _historyManager.canRedo,
               toolCallbacks: <EditorTool, VoidCallback?>{
                 EditorTool.crop: () => _handleToolSelection(EditorTool.crop),
                 EditorTool.relight: () =>

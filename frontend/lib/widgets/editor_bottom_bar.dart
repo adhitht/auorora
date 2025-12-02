@@ -23,11 +23,6 @@ class EditorBottomBar extends StatefulWidget {
   final Map<EditorTool, VoidCallback?> toolCallbacks;
   final List<EditorTool> tools;
   final EditorTool? selectedTool;
-  final VoidCallback? onUndo;
-  final VoidCallback? onRedo;
-  final VoidCallback? onHistory;
-  final bool canUndo;
-  final bool canRedo;
   final List<String>? detectedTags;
   final Set<String>? dismissedSuggestions;
   final Function(String)? onSuggestionSelected;
@@ -37,11 +32,6 @@ class EditorBottomBar extends StatefulWidget {
     required this.toolCallbacks,
     this.tools = EditorTool.values,
     this.selectedTool,
-    this.onUndo,
-    this.onRedo,
-    this.onHistory,
-    this.canUndo = false,
-    this.canRedo = false,
     this.detectedTags,
     this.dismissedSuggestions,
     this.onSuggestionSelected,
@@ -97,6 +87,12 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         widget.dismissedSuggestions != oldWidget.dismissedSuggestions) {
       _loadSuggestions();
     }
+    if (oldWidget.selectedTool != widget.selectedTool) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateHighlight());
+    }
+    if (_currentSuggestions.isEmpty && widget.selectedTool == EditorTool.chat) {
+      _loadSuggestions();
+    }
   }
 
   @override
@@ -118,20 +114,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     super.dispose();
   }
 
-  @override
-  void didUpdateWidget(EditorBottomBar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedTool != widget.selectedTool) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _updateHighlight());
-    }
-    if (_currentSuggestions.isEmpty) {
-      _loadSuggestions();
-    } else if (oldWidget.detectedTags != widget.detectedTags) {
-       setState(() {
-         _currentSuggestions = _suggestionsService.getSuggestionsForTags(widget.detectedTags);
-       });
-    }
-  }
+
 
   int _getHoverIndex(double dragX) {
     final stackBox = _stackKey.currentContext!.findRenderObject() as RenderBox;
@@ -386,74 +369,6 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Undo/Redo/History Controls - Only visible when no tool is selected
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: widget.selectedTool == null ? 1.0 : 0.0,
-              child: IgnorePointer(
-                ignoring: widget.selectedTool != null,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: LiquidGlassLayer(
-                    settings: const LiquidGlassSettings(
-                      thickness: 25,
-                      blur: 20,
-                      glassColor: LiquidGlassTheme.glassDark,
-                      lightIntensity: 0.15,
-                      saturation: 1,
-                    ),
-                    child: LiquidGlass(
-                      shape: LiquidRoundedSuperellipse(borderRadius: 50),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: Colors.grey.withValues(alpha: 0.2),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              onPressed: widget.canUndo ? widget.onUndo : null,
-                              icon: Icon(
-                                CupertinoIcons.arrow_uturn_left,
-                                size: 20,
-                                color: widget.canUndo
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: widget.canRedo ? widget.onRedo : null,
-                              icon: Icon(
-                                CupertinoIcons.arrow_uturn_right,
-                                size: 20,
-                                color: widget.canRedo
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: widget.onHistory,
-                              icon: const Icon(
-                                CupertinoIcons.clock,
-                                size: 20,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
             if (widget.selectedTool == EditorTool.chat) _buildChatInterface(),
 
             Center(

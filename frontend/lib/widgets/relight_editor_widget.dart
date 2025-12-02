@@ -170,8 +170,8 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
   Future<Uint8List?> _getMaskBytes() async {
     if (_maskImage == null) return null;
 
-    final targetWidth = _segmentationService.originalWidth;
-    final targetHeight = _segmentationService.originalHeight;
+    final targetWidth = widget.segmentationService.originalWidth;
+    final targetHeight = widget.segmentationService.originalHeight;
 
     if (targetWidth == 0 || targetHeight == 0) return null;
 

@@ -9,6 +9,11 @@ class EditorTopBar extends StatefulWidget {
   final VoidCallback onSaveTap;
   final VoidCallback? onShareTap;
   final bool isSaving;
+  final VoidCallback? onUndo;
+  final VoidCallback? onRedo;
+  final VoidCallback? onHistory;
+  final bool canUndo;
+  final bool canRedo;
 
   const EditorTopBar({
     super.key,
@@ -16,6 +21,11 @@ class EditorTopBar extends StatefulWidget {
     required this.onSaveTap,
     this.onShareTap,
     this.isSaving = false,
+    this.onUndo,
+    this.onRedo,
+    this.onHistory,
+    this.canUndo = false,
+    this.canRedo = false,
   });
 
   @override
@@ -89,7 +99,68 @@ class _EditorTopBarState extends State<EditorTopBar> {
                 color: Colors.white,
               ),
             ),
-            const Spacer(),
+            // Grouped Undo/Redo/History Controls
+            if (widget.onUndo != null)
+              Expanded(
+                child: Center(
+                  child: LiquidGlassLayer(
+                    settings: const LiquidGlassSettings(
+                      thickness: 25,
+                      blur: 20,
+                      glassColor: LiquidGlassTheme.glassDark,
+                      lightIntensity: 0.15,
+                      saturation: 1,
+                    ),
+                    child: LiquidGlass(
+                      shape: LiquidRoundedSuperellipse(borderRadius: 50),
+                      child: Container(
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(
+                            color: Colors.grey.withValues(alpha: 0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _ControlBtn(
+                              icon: CupertinoIcons.arrow_uturn_left,
+                              onTap: widget.canUndo ? widget.onUndo! : null,
+                              isEnabled: widget.canUndo,
+                            ),
+                            Container(
+                              width: 1,
+                              height: 20,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                            _ControlBtn(
+                              icon: CupertinoIcons.arrow_uturn_right,
+                              onTap: widget.canRedo ? widget.onRedo! : null,
+                              isEnabled: widget.canRedo,
+                            ),
+                            Container(
+                              width: 1,
+                              height: 20,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                            _ControlBtn(
+                              icon: CupertinoIcons.clock,
+                              onTap: widget.onHistory!,
+                              isEnabled: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            else
+              const Spacer(),
+
             if (widget.isSaving)
               _GlassBtn(
                 onTap: () {},
@@ -351,6 +422,46 @@ class _GlassBtn extends StatelessWidget {
                 child: child,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ControlBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool isEnabled;
+
+  const _ControlBtn({
+    required this.icon,
+    required this.onTap,
+    required this.isEnabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isEnabled
+            ? () {
+                HapticFeedback.lightImpact();
+                onTap?.call();
+              }
+            : null,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 48,
+          height: 42,
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            size: 20,
+            color: isEnabled
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.3),
           ),
         ),
       ),
