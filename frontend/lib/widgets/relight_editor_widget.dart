@@ -150,14 +150,59 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     }
   }
 
+  // Future<Uint8List?> _getMaskBytes() async {
+  //   if (_maskImage == null) return null;
+
+  //   final ByteData? byteData = await _maskImage!.toByteData(
+  //     format: ui.ImageByteFormat.png,
+  //   );
+
+  //   return byteData?.buffer.asUint8List();
+  // }
+
   Future<Uint8List?> _getMaskBytes() async {
     if (_maskImage == null) return null;
-    
-    final ByteData? byteData = await _maskImage!.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    
-    return byteData?.buffer.asUint8List();
+
+    final targetWidth = _segmentationService.originalWidth;
+    final targetHeight = _segmentationService.originalHeight;
+
+    if (targetWidth == 0 || targetHeight == 0) return null;
+
+    try {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      final srcRect = Rect.fromLTWH(
+        0,
+        0,
+        _maskImage!.width.toDouble(),
+        _maskImage!.height.toDouble(),
+      );
+
+      final dstRect = Rect.fromLTWH(
+        0,
+        0,
+        targetWidth.toDouble(),
+        targetHeight.toDouble(),
+      );
+
+      final paint = Paint()..filterQuality = FilterQuality.medium;
+      canvas.drawImageRect(_maskImage!, srcRect, dstRect, paint);
+
+      final picture = recorder.endRecording();
+      final fullSizeMask = await picture.toImage(targetWidth, targetHeight);
+
+      final byteData = await fullSizeMask.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      fullSizeMask.dispose();
+
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('Error upscaling mask: $e');
+      return null;
+    }
   }
 
   Future<void> _applyRelight() async {
@@ -172,7 +217,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     final lights = _generateLightsFromStrokes();
 
     if (lights.isEmpty && maskBytes == null) {
-        debugPrint("No lights or mask selected.");
+      debugPrint("No lights or mask selected.");
     }
 
     final processedBytes = await service.sendImageForRelighting(
