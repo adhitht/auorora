@@ -343,10 +343,18 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
     final List<dynamic> jsonMap = [];
 
+    const target = 512.0;
+    final s = target / math.max(width, height);
+    final nw = width * s, nh = height * s;
+    final ox = (target - nw) / 2, oy = (target - nh) / 2;
+
     for (final type in types) {
       final landmark = result.getLandmark(type);
       if (landmark != null) {
-        jsonMap.add([landmark.x * width, landmark.y * height]);
+        jsonMap.add([
+          landmark.x * width * s + ox,
+          landmark.y * height * s + oy,
+        ]);
       }
     }
 
