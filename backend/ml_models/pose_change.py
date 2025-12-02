@@ -144,9 +144,43 @@ class PoseCorrectionPipeline:
         new_img = Image.new('RGB', (max_dim, max_dim), (255, 255, 255))
         new_img.paste(img, ((max_dim - width) // 2, (max_dim - height) // 2))
         return new_img.resize((target_size, target_size))
+    
+    def _restore_original_dimensions(self, processed_512, orig_w, orig_h):
+        """
+        Reverse the padding & resizing applied by _make_square().
+
+        processed_512: PIL.Image of size 512x512
+        orig_w, orig_h: original width & height before padding/resizing
+        """
+
+        # 1. compute original square size
+        max_dim = max(orig_w, orig_h)
+
+        # 2. scale factor to go from square → 512
+        scale_factor = 512 / max_dim
+
+        # 3. compute padding in original square
+        pad_x = (max_dim - orig_w) // 2
+        pad_y = (max_dim - orig_h) // 2
+
+        # 4. scale padding
+        scaled_pad_x = int(pad_x * scale_factor)
+        scaled_pad_y = int(pad_y * scale_factor)
+
+        # 5. compute crop region in processed image
+        crop_left   = scaled_pad_x
+        crop_top    = scaled_pad_y
+        crop_right  = scaled_pad_x + int(orig_w * scale_factor)
+        crop_bottom = scaled_pad_y + int(orig_h * scale_factor)
+
+        cropped = processed_512.crop((crop_left, crop_top, crop_right, crop_bottom))
+
+        # 6. upscale back to original dimensions
+        restored = cropped.resize((orig_w, orig_h), Image.LANCZOS)
+
+        return restored
 
     def _draw_synthetic_hand(self, canvas, elbow_pt, wrist_pt, scale_factor=1.0):
-        # (Copied from original logic)
         vec_x = wrist_pt[0] - elbow_pt[0]
         vec_y = wrist_pt[1] - elbow_pt[1]
         arm_len = np.sqrt(vec_x**2 + vec_y**2)
@@ -251,7 +285,9 @@ class PoseCorrectionPipeline:
 
         else:
             raise TypeError("image_input must be bytes")
-            
+        
+        orig_w, orig_h = raw_image.size
+
         original_image = self._make_square(raw_image, 512)
         src_np = np.array(original_image)
         
@@ -424,8 +460,14 @@ class PoseCorrectionPipeline:
         
         composite_img = Image.fromarray(composite.astype(np.uint8))
         
+        restored_img = self._restore_original_dimensions(
+            composite_img,   
+            orig_w,          
+            orig_h           
+        )
+
         buffer = BytesIO()
-        composite_img.save(buffer, format="PNG")
+        restored_img.save(buffer, format="PNG")
         png_bytes = buffer.getvalue()
 
         return png_bytes
