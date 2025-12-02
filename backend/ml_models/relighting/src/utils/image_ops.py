@@ -57,6 +57,41 @@ def preprocess_object(pil_img: Image.Image, mask: np.ndarray, target_res=256, bg
     return Image.fromarray(obj_only_resized), meta
 
 
+# def upscale_relit(relit_pil: Image.Image, scale_factor: float = 1.0, target_res: int = None, resample=Image.LANCZOS, upscaler_callback=None) -> Image.Image:
+#     """
+#     Upscale the relit object image in a modular way.
+
+#     - If `upscaler_callback` is provided it will be called as
+#       `upscaler_callback(relit_pil, scale_factor=scale_factor, target_res=target_res)`
+#       and its return value will be used (enables integration with Real-ESRGAN or other models).
+#     - Otherwise, a simple PIL resize is used. If `target_res` is provided it overrides
+#       `scale_factor` and the image will be resized to `(target_res, target_res)`.
+
+#     Args:
+#         relit_pil: PIL image produced by the relighting pipeline.
+#         scale_factor: Multiplicative upscale factor (1.0 = no-op).
+#         target_res: Exact square resolution to resize to (optional).
+#         resample: PIL resampling filter to use for simple resize.
+#         upscaler_callback: Optional callable for custom upscaling.
+
+#     Returns:
+#         PIL.Image: Upscaled image.
+#     """
+#     # If user provided a custom upscaler, delegate to it (keeps modularity)
+#     if upscaler_callback is not None:
+#         return upscaler_callback(relit_pil, scale_factor=scale_factor, target_res=target_res)
+
+#     if target_res is not None:
+#         w = h = int(target_res)
+#     else:
+#         if scale_factor is None or float(scale_factor) <= 1.0:
+#             return relit_pil
+#         w, h = relit_pil.size
+#         w = int(round(w * float(scale_factor)))
+#         h = int(round(h * float(scale_factor)))
+
+#     return relit_pil.resize((w, h), resample=resample)
+
 
 def read_hdri_map(hdri_path, target_res=(256, 256), rot_angle=0.0):
     """
@@ -341,7 +376,12 @@ def render_multi_light_layer(width, height, lights_list):
         glow_r, glow_g, glow_b = r**2.0, g**2.0, b**2.0
 
         glow_color_bgr = (glow_b, glow_g, glow_r)
-        core_color_bgr = (1.0, 1.0, 1.0)
+        tint_strength = 0.3  # adjust between 0.2–0.4 for subtle tint
+        core_r = (1.0 * (1 - tint_strength)) + (r * tint_strength)
+        core_g = (1.0 * (1 - tint_strength)) + (g * tint_strength)
+        core_b = (1.0 * (1 - tint_strength)) + (b * tint_strength)
+
+        core_color_bgr = (core_b, core_g, core_r)
 
         #drawing the glow part
         temp_glow = np.zeros((height, width, 3), dtype=np.float32)
