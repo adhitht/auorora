@@ -7,10 +7,9 @@ from typing import Optional, Dict, List
 from config import cfg
 from src.models.neural_gaffer import build_pipeline
 from src.utils.image_ops import read_hdri_map, composite_with_shadows, generate_env_map_from_image
-from transformers import pipeline as hf_pipeline
 
 
-def relight_object(pipe, image_path, mask, hdri_path,
+def relight_object(pipe, depth_estimator, image_path, mask, hdri_path,
                   rot_angle=0.0, guidance_scale=3.0, seed=None, num_inference_steps=50,
                   shadow_reach=0.4, debug=False,
                   lights_config: Optional[List[Dict]] = None):
@@ -19,7 +18,11 @@ def relight_object(pipe, image_path, mask, hdri_path,
     Saves `relit_output.png` and returns (PIL.Image, mask, meta).
     
     Args:
+        pipe: The relighting pipeline
+        depth_estimator: Pre-loaded depth estimation model
         image_path : Image, can be path or Image.image instance
+        mask: Binary mask for the object
+        hdri_path: Path to HDRI environment map
         use_shadows: If True, composite shadows onto the original image
         shadow_reach: Controls how far shadows extend (0.0-1.0)
         lights_config: Optional list of light configurations for custom env map generation
@@ -67,9 +70,7 @@ def relight_object(pipe, image_path, mask, hdri_path,
         print("Compositing with Shadows")
         print("=" * 60)
         
-    # Initialize depth estimator
-    depth_estimator = hf_pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-large-hf")
-    
+    #call final composition function
     final_result = composite_with_shadows(
         depth_estimator=depth_estimator,
         original_pil=original_pil,
