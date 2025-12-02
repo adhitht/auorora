@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import '../models/edit_history.dart';
 import '../services/edit_history_manager.dart';
 import '../theme/liquid_glass_theme.dart';
@@ -30,7 +31,7 @@ class _HistoryViewerDialogState extends State<HistoryViewerDialog>
       vsync: this,
     );
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(1.0, 0.0),
+      begin: const Offset(0.0, -1.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
     _controller.forward();
@@ -71,70 +72,58 @@ class _HistoryViewerDialogState extends State<HistoryViewerDialog>
         child: SlideTransition(
           position: _slideAnimation,
           child: Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.topCenter,
             child: GestureDetector(
               onTap: () {}, // Prevent closing when tapping inside
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  width: 200,
-                  height: MediaQuery.of(context).size.height,
+                  width: double.infinity,
+                  height: 340, // Fixed height for the dropdown
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.95),
+                    color: const Color(0xFF1C1C1E),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.5),
                         blurRadius: 20,
-                        offset: const Offset(-5, 0),
+                        offset: const Offset(0, 5),
                       ),
                     ],
+                    borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(24),
+                    ),
                   ),
                   child: SafeArea(
+                    bottom: false,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Compact Header
+                        // Header
                         Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 16,
-                          ),
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                           child: Row(
                             children: [
-                              const Icon(
-                                Icons.history,
-                                color: LiquidGlassTheme.primary,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  '${history.length} edits',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                              const Text(
+                                'History',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              const Spacer(),
                               IconButton(
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                                 onPressed: _close,
                                 icon: const Icon(
-                                  Icons.close,
+                                  CupertinoIcons.chevron_up,
                                   color: Colors.white,
-                                  size: 20,
+                                  size: 24,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-
-                        Divider(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          height: 1,
-                          thickness: 1,
                         ),
 
                         // History List
@@ -142,17 +131,19 @@ class _HistoryViewerDialogState extends State<HistoryViewerDialog>
                           child: history.isEmpty
                               ? Center(
                                   child: Text(
-                                    'No edits',
+                                    'No edits yet',
                                     style: TextStyle(
                                       color: Colors.white.withValues(
                                         alpha: 0.5,
                                       ),
-                                      fontSize: 12,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 )
                               : ListView.builder(
+                                  scrollDirection: Axis.horizontal,
                                   padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
                                     vertical: 8,
                                   ),
                                   itemCount: history.length,
@@ -175,6 +166,7 @@ class _HistoryViewerDialogState extends State<HistoryViewerDialog>
                                   },
                                 ),
                         ),
+                        const SizedBox(height: 20),
                       ],
                     ),
                   ),
@@ -246,96 +238,104 @@ class _HistoryEntryTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        width: 140, // Fixed width for horizontal scrolling
+        margin: const EdgeInsets.symmetric(horizontal: 6),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isCurrent
-                ? LiquidGlassTheme.primary
-                : Colors.white.withValues(alpha: 0.1),
-            width: isCurrent ? 2 : 1,
+                ? Colors.white
+                : Colors.transparent,
+            width: 2,
           ),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: AspectRatio(
-            aspectRatio: 3 / 4,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.file(
-                  entry.imageFile,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      child: const Icon(
-                        Icons.broken_image,
-                        color: Colors.white38,
-                        size: 24,
-                      ),
-                    );
-                  },
-                ),
-
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.7),
-                        ],
-                      ),
+          borderRadius: BorderRadius.circular(10),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                entry.imageFile,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    child: const Icon(
+                      Icons.broken_image,
+                      color: Colors.white38,
+                      size: 24,
                     ),
-                    padding: const EdgeInsets.all(6),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _getIconForType(entry.type),
-                          size: 14,
-                          color: Colors.white.withValues(alpha: 0.9),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                entry.type.displayName,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: isCurrent
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                _formatTime(entry.timestamp),
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.6),
-                                  fontSize: 9,
-                                ),
-                                maxLines: 1,
-                              ),
-                            ],
-                          ),
-                        ),
+                  );
+                },
+              ),
+
+              // Gradient Overlay
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 80,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.8),
                       ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // Text Content
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 10,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      entry.type.displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatTime(entry.timestamp),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 11,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Current Indicator (optional, maybe just border is enough)
+              if (isCurrent)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
