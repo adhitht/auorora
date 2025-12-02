@@ -39,7 +39,7 @@ class _EditorScreenState extends State<EditorScreen>
   Widget Function()? _relightControlPanelBuilder;
   Widget Function()? _cropControlPanelBuilder;
   Widget Function()? _reframeControlPanelBuilder;
-  Widget Function()? _chatControlPanelBuilder; // Add Chat Panel Builder
+
 
   final ImageProcessingService _imageService = ImageProcessingService();
   final SigLipService _sigLipService = SigLipService(); // Initialize SigLipService
@@ -187,6 +187,8 @@ class _EditorScreenState extends State<EditorScreen>
     });
   }
 
+  List<String> _detectedTags = [];
+
   Future<void> _enterChatMode() async {
     if (_currentPhotoFile == null) return;
     
@@ -195,95 +197,25 @@ class _EditorScreenState extends State<EditorScreen>
       _isCropMode = false;
       _isRelightMode = false;
       _isReframeMode = false;
-      _chatControlPanelBuilder = () => _buildChatPanel(isLoading: true);
     });
 
     try {
       final imageBytes = await _currentPhotoFile!.readAsBytes();
       final embedding = await _sigLipService.embed(imageBytes);
       await _sigLipService.loadTags();
-      final matches = _sigLipService.findBestMatches(embedding, topK: 100); // Get top 100 or -1 for all
+      final matches = _sigLipService.findBestMatches(embedding, topK: 20);
       
       if (mounted) {
         setState(() {
-          _chatControlPanelBuilder = () => _buildChatPanel(matches: matches);
+          _detectedTags = matches.map((e) => e.key).toList();
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _chatControlPanelBuilder = () => _buildChatPanel(error: e.toString());
-        });
-      }
+      debugPrint("SigLip error: $e");
     }
   }
 
-  Widget _buildChatPanel({List<MapEntry<String, double>>? matches, String? error, bool isLoading = false}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.5,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Image Analysis',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                onPressed: _exitChatMode,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (isLoading)
-            const Center(child: CircularProgressIndicator(color: Colors.white))
-          else if (error != null)
-            Text('Error: $error', style: const TextStyle(color: Colors.red))
-          else if (matches != null && matches.isNotEmpty)
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: matches.map((entry) {
-                    final percentage = (entry.value * 100).toStringAsFixed(1);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        children: [
-                          Text(
-                            entry.key,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '$percentage%',
-                            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            )
-          else
-             const Text('No tags found.', style: TextStyle(color: Colors.white70)),
-        ],
-      ),
-    );
-  }
+
 
   void _handleToolSelection(EditorTool tool) {
     // Check if clicking the same tool - toggle it off
@@ -350,7 +282,6 @@ class _EditorScreenState extends State<EditorScreen>
   void _exitChatMode() {
     setState(() {
       _isChatMode = false;
-      _chatControlPanelBuilder = null;
     });
   }
 
@@ -371,6 +302,7 @@ class _EditorScreenState extends State<EditorScreen>
       _currentPhotoFile = croppedFile;
       _isCropMode = false;
       _isProcessing = false;
+      _detectedTags = [];
     });
     ScaffoldMessenger.of(
       context,
@@ -400,6 +332,7 @@ class _EditorScreenState extends State<EditorScreen>
       _currentPhotoFile = relitFile;
       _isRelightMode = false;
       _isProcessing = false;
+      _detectedTags = [];
     });
     ScaffoldMessenger.of(
       context,
@@ -423,6 +356,7 @@ class _EditorScreenState extends State<EditorScreen>
       _currentPhotoFile = reframedFile;
       _isReframeMode = false;
       _isProcessing = false;
+      _detectedTags = [];
     });
     ScaffoldMessenger.of(
       context,
@@ -565,25 +499,7 @@ class _EditorScreenState extends State<EditorScreen>
             ),
           ),
 
-          // Chat controls panel (slides up from behind bottom bar)
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            left: 12,
-            right: 12,
-            bottom: _isChatMode && _chatControlPanelBuilder != null
-                ? 88
-                : -200,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _isChatMode && _chatControlPanelBuilder != null
-                  ? 1.0
-                  : 0.0,
-              child: _chatControlPanelBuilder != null
-                  ? _chatControlPanelBuilder!()
-                  : const SizedBox.shrink(),
-            ),
-          ),
+
 
           Positioned(
             left: 0,
@@ -599,6 +515,7 @@ class _EditorScreenState extends State<EditorScreen>
                           : _isChatMode
                               ? EditorTool.chat
                               : null,
+              detectedTags: _detectedTags,
               onUndo: _handleUndo,
               onRedo: _handleRedo,
               onHistory: _showHistoryViewer,

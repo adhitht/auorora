@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../theme/liquid_glass_theme.dart';
+import '../services/suggestions_service.dart';
 
 enum EditorTool {
   crop(CupertinoIcons.crop, "Crop"),
@@ -26,6 +27,7 @@ class EditorBottomBar extends StatefulWidget {
   final VoidCallback? onHistory;
   final bool canUndo;
   final bool canRedo;
+  final List<String>? detectedTags;
 
   const EditorBottomBar({
     super.key,
@@ -37,6 +39,7 @@ class EditorBottomBar extends StatefulWidget {
     this.onHistory,
     this.canUndo = false,
     this.canRedo = false,
+    this.detectedTags,
   });
 
   @override
@@ -55,11 +58,43 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   double _x = -4;
   double _width = 0;
 
+  final SuggestionsService _suggestionsService = SuggestionsService();
+  List<String> _currentSuggestions = [];
+  bool _isLoadingSuggestions = false;
+  bool _isTyping = false;
+  final TextEditingController _chatController = TextEditingController();
+
+  Future<void> _loadSuggestions() async {
+    if (_isLoadingSuggestions) return;
+    _isLoadingSuggestions = true;
+
+    await _suggestionsService.loadSuggestions();
+    
+    if (mounted) {
+      setState(() {
+        _currentSuggestions = _suggestionsService.getSuggestionsForTags(widget.detectedTags);
+      });
+    }
+    _isLoadingSuggestions = false;
+  }
+
   @override
   void initState() {
     super.initState();
     _keys = List.generate(widget.tools.length, (_) => GlobalKey());
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateHighlight());
+    _loadSuggestions();
+    _chatController.addListener(() {
+      setState(() {
+        _isTyping = _chatController.text.isNotEmpty;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _chatController.dispose();
+    super.dispose();
   }
 
   @override
@@ -67,6 +102,13 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedTool != widget.selectedTool) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _updateHighlight());
+    }
+    if (_currentSuggestions.isEmpty) {
+      _loadSuggestions();
+    } else if (oldWidget.detectedTags != widget.detectedTags) {
+       setState(() {
+         _currentSuggestions = _suggestionsService.getSuggestionsForTags(widget.detectedTags);
+       });
     }
   }
 
@@ -155,6 +197,165 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     HapticFeedback.lightImpact();
   }
 
+  Widget _buildChatInterface() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20.0, left: 20, right: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_currentSuggestions.isNotEmpty)
+            SizedBox(
+              height: 32,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                itemCount: _currentSuggestions.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () {
+                      _chatController.text = _currentSuggestions[index];
+                    },
+                    child: LiquidGlassLayer(
+                      settings: const LiquidGlassSettings(
+                        thickness: 20,
+                        blur: 10,
+                        glassColor: LiquidGlassTheme.glassDark,
+                      ),
+                      child: LiquidGlass(
+                        shape: LiquidRoundedSuperellipse(borderRadius: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                width: 0.5),
+                          ),
+                          child: Text(
+                            _currentSuggestions[index],
+                            style: GoogleFonts.roboto(
+                                color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              LiquidGlassLayer(
+                settings: const LiquidGlassSettings(
+                  thickness: 25,
+                  blur: 20,
+                  glassColor: LiquidGlassTheme.glassDark,
+                  lightIntensity: 0.15,
+                  saturation: 1,
+                ),
+                child: LiquidGlass(
+                  shape: LiquidRoundedSuperellipse(borderRadius: 50),
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(50),
+                      border: Border.all(
+                        color: Colors.grey.withValues(alpha: 0.2),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Icon(CupertinoIcons.mic,
+                        color: Colors.white, size: 24),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: LiquidGlassLayer(
+                  settings: const LiquidGlassSettings(
+                    thickness: 25,
+                    blur: 20,
+                    glassColor: LiquidGlassTheme.glassDark,
+                    lightIntensity: 0.15,
+                    saturation: 1,
+                  ),
+                  child: LiquidGlass(
+                    shape: LiquidRoundedSuperellipse(borderRadius: 50),
+                    child: Container(
+                      height: 52,
+                      padding: const EdgeInsets.only(left: 20, right: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(50),
+                        border: Border.all(
+                          color: Colors.grey.withValues(alpha: 0.2),
+                          width: 1.5,
+                        ),
+                      ),
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _chatController,
+                              style: GoogleFonts.roboto(
+                                  color: Colors.white, fontSize: 16),
+                              decoration: InputDecoration(
+                                hintText: "Type Prompt",
+                                hintStyle: GoogleFonts.roboto(
+                                    color: Colors.white.withValues(alpha: 0.4),
+                                    fontSize: 16),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                          if (true)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: GestureDetector(
+                                onTap: () {
+                                  // TODO: Implement send action
+                                  HapticFeedback.mediumImpact();
+                                  _chatController.clear();
+                                },
+                                child: Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: LiquidGlassTheme.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      width: 1.0,
+                                    ),
+                                  ),
+                                  child: const Icon(CupertinoIcons.arrow_up,
+                                      color: Colors.white, size: 20),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -231,6 +432,8 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                 ),
               ),
             ),
+
+            if (widget.selectedTool == EditorTool.chat) _buildChatInterface(),
 
             Center(
               child: LiquidGlassLayer(

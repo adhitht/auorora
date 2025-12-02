@@ -1,0 +1,269 @@
+{
+  "human_present": [
+    "Enhance the subject's clarity",
+    "Improve lighting on the person",
+    "Refine facial details"
+  ],
+  "no_human": [
+    "Boost overall sharpness",
+    "Balance lighting",
+    "Enhance scene colors"
+  ],
+
+  "face_visible": [
+    "Brighten the face",
+    "Sharpen facial features",
+    "Smooth skin subtly"
+  ],
+  "face_not_visible": [
+    "Reveal more subject detail",
+    "Improve exposure",
+    "Adjust framing for visibility"
+  ],
+
+  "posture_slouched": [
+    "Straighten the posture",
+    "Lift the shoulders",
+    "Align the head"
+  ],
+  "posture_straight": [
+    "Emphasize clean posture",
+    "Enhance body symmetry"
+  ],
+  "back_curved": [
+    "Straighten the back",
+    "Lift the upper body"
+  ],
+  "back_straight": [
+    "Highlight body alignment"
+  ],
+
+  "shoulders_rounded": [
+    "Pull shoulders back",
+    "Open the upper body"
+  ],
+  "shoulders_back": [
+    "Emphasize strong shoulder posture"
+  ],
+  "shoulders_uneven": [
+    "Level the shoulders"
+  ],
+  "shoulders_level": [
+    "Accentuate even alignment"
+  ],
+  "shoulders_raised": [
+    "Relax the shoulders"
+  ],
+  "shoulders_relaxed": [
+    "Enhance relaxed posture"
+  ],
+
+  "head_forward": [
+    "Align the head properly",
+    "Correct neck posture"
+  ],
+  "head_aligned": [
+    "Highlight natural head position"
+  ],
+  "head_tilted_left": [
+    "Straighten the head"
+  ],
+  "head_tilted_right": [
+    "Straighten the head"
+  ],
+  "head_tilted_back": [
+    "Adjust head angle"
+  ],
+  "head_tilted_down": [
+    "Lift the head slightly"
+  ],
+  "neck_strained": [
+    "Soften neck tension"
+  ],
+
+  "chest_collapsed": [
+    "Lift the chest",
+    "Open the upper body"
+  ],
+  "chest_open": [
+    "Highlight open chest posture"
+  ],
+
+  "hips_tilted_forward": [
+    "Correct lower-back arch"
+  ],
+  "hips_tilted_back": [
+    "Align the hips"
+  ],
+  "hips_neutral": [
+    "Maintain balanced hip position"
+  ],
+
+  "standing_straight": [
+    "Enhance upright stance"
+  ],
+  "standing_leaning": [
+    "Balance body weight"
+  ],
+  "stance_wide": [
+    "Narrow the stance"
+  ],
+  "stance_narrow": [
+    "Widen the stance"
+  ],
+
+  "sitting_slouched": [
+    "Straighten the sitting posture",
+    "Lift the torso"
+  ],
+  "sitting_upright": [
+    "Emphasize upright posture"
+  ],
+
+  "arms_crossed": [
+    "Relax the arm pose"
+  ],
+  "arms_hanging": [
+    "Highlight natural arm placement"
+  ],
+  "arms_awkward": [
+    "Refine arm position"
+  ],
+  "hands_on_hips": [
+    "Soften the arm posture"
+  ],
+  "hands_in_pockets": [
+    "Adjust arms for a more open look"
+  ],
+
+  "lit_from_front": [
+    "Add gentle contrast"
+  ],
+  "lit_from_left": [
+    "Balance side lighting"
+  ],
+  "lit_from_right": [
+    "Balance side lighting"
+  ],
+  "lit_from_above": [
+    "Soften overhead shadows"
+  ],
+  "lit_from_below": [
+    "Reduce upward shadows"
+  ],
+  "backlit": [
+    "Brighten the subject"
+  ],
+
+  "lighting_harsh": [
+    "Soften the lighting",
+    "Reduce strong shadows"
+  ],
+  "lighting_soft": [
+    "Enhance soft light"
+  ],
+  "lighting_even": [
+    "Add subtle depth"
+  ],
+  "lighting_dramatic": [
+    "Soften contrast"
+  ],
+
+  "underexposed": [
+    "Brighten the image",
+    "Lift shadows"
+  ],
+  "overexposed": [
+    "Lower highlights",
+    "Recover bright details"
+  ],
+  "well_exposed": [
+    "Sharpen details"
+  ],
+
+  "harsh_shadows": [
+    "Soften harsh shadows"
+  ],
+  "soft_shadows": [
+    "Enhance gentle shading"
+  ],
+  "no_shadows": [
+    "Add slight depth"
+  ],
+  "face_half_shadow": [
+    "Balance facial lighting"
+  ],
+  "under_eye_shadows": [
+    "Brighten under-eye areas"
+  ],
+
+  "warm_lighting": [
+    "Balance warm tones"
+  ],
+  "cool_lighting": [
+    "Warm up the colors"
+  ],
+  "neutral_lighting": [
+    "Enhance clarity"
+  ],
+
+  "golden_hour": [
+    "Boost warm glow"
+  ],
+  "blue_hour": [
+    "Brighten the scene"
+  ],
+  "midday_sun": [
+    "Soften harsh highlights"
+  ],
+
+  "window_light": [
+    "Enhance soft natural light"
+  ],
+  "studio_lighting": [
+    "Refine highlight balance"
+  ],
+  "flash_lighting": [
+    "Reduce flash harshness"
+  ],
+  "ambient_lighting": [
+    "Boost clarity"
+  ],
+  "mixed_lighting": [
+    "Balance color temperatures"
+  ],
+
+  "face_well_lit": [
+    "Enhance facial clarity"
+  ],
+  "face_poorly_lit": [
+    "Brighten the face"
+  ],
+  "face_glowing": [
+    "Enhance the glow"
+  ],
+  "face_flat_lit": [
+    "Add subtle contrast"
+  ],
+
+  "background_cluttered": [
+    "Clean up the background",
+    "Reduce distractions"
+  ],
+  "background_clean": [
+    "Emphasize background simplicity"
+  ],
+  "background_indoor": [
+    "Brighten the scene"
+  ],
+  "background_outdoor": [
+    "Enhance natural colors"
+  ],
+
+  "quality_sharp": [
+    "Accentuate fine details"
+  ],
+  "quality_blurry": [
+    "Sharpen the image"
+  ]
+}
