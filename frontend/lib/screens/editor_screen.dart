@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../theme/liquid_glass_theme.dart';
 import '../services/image_processing_service.dart';
 import '../services/edit_history_manager.dart';
+import '../services/siglip_service.dart'; // Import SigLipService
 import '../models/edit_history.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/editor_bottom_bar.dart';
@@ -33,12 +34,15 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isCropMode = false;
   bool _isRelightMode = false;
   bool _isReframeMode = false;
+  bool _isChatMode = false; // Add Chat Mode
 
   Widget Function()? _relightControlPanelBuilder;
   Widget Function()? _cropControlPanelBuilder;
   Widget Function()? _reframeControlPanelBuilder;
+  Widget Function()? _chatControlPanelBuilder; // Add Chat Panel Builder
 
   final ImageProcessingService _imageService = ImageProcessingService();
+  final SigLipService _sigLipService = SigLipService(); // Initialize SigLipService
   late final EditHistoryManager _historyManager;
 
   @override
@@ -69,6 +73,7 @@ class _EditorScreenState extends State<EditorScreen>
   void dispose() {
     _historyManager.removeListener(_onHistoryChanged);
     _historyManager.dispose();
+    _sigLipService.dispose(); // Dispose SigLipService
     super.dispose();
   }
 
@@ -92,6 +97,8 @@ class _EditorScreenState extends State<EditorScreen>
         _currentPhotoFile = entry.imageFile;
         _exitCropMode();
         _exitRelightMode();
+        _exitReframeMode();
+        _exitChatMode();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,6 +121,8 @@ class _EditorScreenState extends State<EditorScreen>
         _currentPhotoFile = entry.imageFile;
         _exitCropMode();
         _exitRelightMode();
+        _exitReframeMode();
+        _exitChatMode();
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,6 +148,8 @@ class _EditorScreenState extends State<EditorScreen>
               _currentPhotoFile = entry.imageFile;
               _exitCropMode();
               _exitRelightMode();
+              _exitReframeMode();
+              _exitChatMode();
             });
           }
         },
@@ -152,6 +163,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isCropMode = true;
       _isRelightMode = false;
       _isReframeMode = false;
+      _isChatMode = false;
     });
   }
 
@@ -161,6 +173,7 @@ class _EditorScreenState extends State<EditorScreen>
       _isRelightMode = true;
       _isCropMode = false;
       _isReframeMode = false;
+      _isChatMode = false;
     });
   }
 
@@ -170,7 +183,106 @@ class _EditorScreenState extends State<EditorScreen>
       _isReframeMode = true;
       _isCropMode = false;
       _isRelightMode = false;
+      _isChatMode = false;
     });
+  }
+
+  Future<void> _enterChatMode() async {
+    if (_currentPhotoFile == null) return;
+    
+    setState(() {
+      _isChatMode = true;
+      _isCropMode = false;
+      _isRelightMode = false;
+      _isReframeMode = false;
+      _chatControlPanelBuilder = () => _buildChatPanel(isLoading: true);
+    });
+
+    try {
+      final imageBytes = await _currentPhotoFile!.readAsBytes();
+      final embedding = await _sigLipService.embed(imageBytes);
+      await _sigLipService.loadTags();
+      final matches = _sigLipService.findBestMatches(embedding, topK: 100); // Get top 100 or -1 for all
+      
+      if (mounted) {
+        setState(() {
+          _chatControlPanelBuilder = () => _buildChatPanel(matches: matches);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _chatControlPanelBuilder = () => _buildChatPanel(error: e.toString());
+        });
+      }
+    }
+  }
+
+  Widget _buildChatPanel({List<MapEntry<String, double>>? matches, String? error, bool isLoading = false}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.5,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Image Analysis',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                onPressed: _exitChatMode,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (isLoading)
+            const Center(child: CircularProgressIndicator(color: Colors.white))
+          else if (error != null)
+            Text('Error: $error', style: const TextStyle(color: Colors.red))
+          else if (matches != null && matches.isNotEmpty)
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: matches.map((entry) {
+                    final percentage = (entry.value * 100).toStringAsFixed(1);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        children: [
+                          Text(
+                            entry.key,
+                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '$percentage%',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            )
+          else
+             const Text('No tags found.', style: TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
   }
 
   void _handleToolSelection(EditorTool tool) {
@@ -187,17 +299,16 @@ class _EditorScreenState extends State<EditorScreen>
       _exitReframeMode();
       return;
     }
+    if (tool == EditorTool.chat && _isChatMode) {
+      _exitChatMode();
+      return;
+    }
 
     // Exit other modes
-    if (tool != EditorTool.crop && _isCropMode) {
-      _exitCropMode();
-    }
-    if (tool != EditorTool.relight && _isRelightMode) {
-      _exitRelightMode();
-    }
-    if (tool != EditorTool.reframe && _isReframeMode) {
-      _exitReframeMode();
-    }
+    if (tool != EditorTool.crop && _isCropMode) _exitCropMode();
+    if (tool != EditorTool.relight && _isRelightMode) _exitRelightMode();
+    if (tool != EditorTool.reframe && _isReframeMode) _exitReframeMode();
+    if (tool != EditorTool.chat && _isChatMode) _exitChatMode();
 
     switch (tool) {
       case EditorTool.crop:
@@ -209,8 +320,8 @@ class _EditorScreenState extends State<EditorScreen>
       case EditorTool.reframe:
         _enterReframeMode();
         break;
-      case EditorTool.filters:
-        // TODO: Implement filters
+      case EditorTool.chat:
+        _enterChatMode();
         break;
     }
   }
@@ -218,21 +329,28 @@ class _EditorScreenState extends State<EditorScreen>
   void _exitCropMode() {
     setState(() {
       _isCropMode = false;
-      _cropControlPanelBuilder = null; // Clear builder when exiting
+      _cropControlPanelBuilder = null;
     });
   }
 
   void _exitRelightMode() {
     setState(() {
       _isRelightMode = false;
-      _relightControlPanelBuilder = null; // Clear builder when exiting
+      _relightControlPanelBuilder = null;
     });
   }
 
   void _exitReframeMode() {
     setState(() {
       _isReframeMode = false;
-      _reframeControlPanelBuilder = null; // Clear builder when exiting
+      _reframeControlPanelBuilder = null;
+    });
+  }
+
+  void _exitChatMode() {
+    setState(() {
+      _isChatMode = false;
+      _chatControlPanelBuilder = null;
     });
   }
 
@@ -447,7 +565,26 @@ class _EditorScreenState extends State<EditorScreen>
             ),
           ),
 
-          // Bottom bar (always visible, on top)
+          // Chat controls panel (slides up from behind bottom bar)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+            left: 12,
+            right: 12,
+            bottom: _isChatMode && _chatControlPanelBuilder != null
+                ? 88
+                : -200,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _isChatMode && _chatControlPanelBuilder != null
+                  ? 1.0
+                  : 0.0,
+              child: _chatControlPanelBuilder != null
+                  ? _chatControlPanelBuilder!()
+                  : const SizedBox.shrink(),
+            ),
+          ),
+
           Positioned(
             left: 0,
             right: 0,
@@ -459,7 +596,9 @@ class _EditorScreenState extends State<EditorScreen>
                       ? EditorTool.relight
                       : _isReframeMode
                           ? EditorTool.reframe
-                          : null,
+                          : _isChatMode
+                              ? EditorTool.chat
+                              : null,
               onUndo: _handleUndo,
               onRedo: _handleRedo,
               onHistory: _showHistoryViewer,
@@ -471,8 +610,8 @@ class _EditorScreenState extends State<EditorScreen>
                     _handleToolSelection(EditorTool.relight),
                 EditorTool.reframe: () =>
                     _handleToolSelection(EditorTool.reframe),
-                EditorTool.filters: () =>
-                    _handleToolSelection(EditorTool.filters),
+                EditorTool.chat: () =>
+                    _handleToolSelection(EditorTool.chat),
               },
             ),
           ),

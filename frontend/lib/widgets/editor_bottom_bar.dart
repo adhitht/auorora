@@ -9,7 +9,7 @@ enum EditorTool {
   crop(CupertinoIcons.crop, "Crop"),
   relight(CupertinoIcons.light_min, "Relight"),
   reframe(CupertinoIcons.perspective, "Reframe"),
-  filters(CupertinoIcons.paintbrush, "Filters");
+  chat(CupertinoIcons.chat_bubble, "Chat");
 
   final IconData icon;
   final String label;
