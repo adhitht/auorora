@@ -1,21 +1,22 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../theme/liquid_glass_theme.dart';
 import '../services/suggestions_service.dart';
 
 enum EditorTool {
-  crop(CupertinoIcons.crop, "Crop"),
-  relight(CupertinoIcons.light_min, "Relight"),
-  reframe(CupertinoIcons.perspective, "Reframe"),
-  chat(CupertinoIcons.chat_bubble, "Chat");
+  crop("assets/icons/transform.svg", "Crop"),
+  relight("assets/icons/relight.svg", "Relight"),
+  reframe("assets/icons/reframe.svg", "Reframe"),
+  chat("assets/icons/star.svg", "Chat");
 
-  final IconData icon;
+  final String iconPath;
   final String label;
 
-  const EditorTool(this.icon, this.label);
+  const EditorTool(this.iconPath, this.label);
 }
 
 class EditorBottomBar extends StatefulWidget {
@@ -467,7 +468,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                           widget.tools.length,
                           (index) => _ToolButton(
                             key: _keys[index],
-                            icon: widget.tools[index].icon,
+                            iconPath: widget.tools[index].iconPath,
                             label: widget.tools[index].label,
                             isSelected: widget.selectedTool == widget.tools[index],
                             onTap: () => _select(index),
@@ -555,14 +556,14 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
 }
 
 class _ToolButton extends StatelessWidget {
-  final IconData icon;
+  final String iconPath;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _ToolButton({
     super.key,
-    required this.icon,
+    required this.iconPath,
     required this.label,
     required this.isSelected,
     required this.onTap,
@@ -570,6 +571,10 @@ class _ToolButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String displayIconPath = isSelected
+        ? iconPath.replaceAll('.svg', '_selected.svg')
+        : iconPath;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -577,12 +582,16 @@ class _ToolButton extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              size: 26,
-              color: isSelected
-                  ? Colors.white
-                  : Colors.white.withValues(alpha: 0.6),
+            SvgPicture.asset(
+              displayIconPath,
+              width: 26,
+              height: 26,
+              colorFilter: ColorFilter.mode(
+                isSelected
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.6),
+                BlendMode.srcIn,
+              ),
             ),
             const SizedBox(height: 3),
             Text(
