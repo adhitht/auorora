@@ -37,7 +37,7 @@ class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
             processed_image = relight_pipeline.predict(image, mask, lights_config=lightmap)
             
             output_buffer = io.BytesIO()
-            processed_image.save(output_buffer, format='PNG')
+            processed_image[0].save(output_buffer, format='PNG')
             # processed_image.save(output_buffer, format=save_format)
             processed_image_data = output_buffer.getvalue()
             
@@ -69,7 +69,7 @@ class PoseChangingService(pose_pb2_grpc.PoseChangingServiceServicer):
                  print("No offset config provided, returning original image")
                  processed_image = image
             else:
-                processed_image = pose_pipeline.process_request(image, offset_config)
+                processed_image = pose_pipeline.process_request(image_data, offset_config)
             
             output_buffer = io.BytesIO()
             processed_image.save(output_buffer, format='PNG')

@@ -232,7 +232,7 @@ class PoseCorrectionPipeline:
         Returns:
             PIL.Image of the result
         """
-        
+        HIP_SCALE = 1.0
         # Unpack Configuration
         try:
             RIGHT_WRIST_OFFSET = tuple(offset_config[0])
@@ -245,10 +245,12 @@ class PoseCorrectionPipeline:
             raise ValueError("Invalid offset_config format. Expected list of length 7.") from e
 
         # Load Image
-        if isinstance(image_input, str):
-            raw_image = Image.open(image_input).convert("RGB")
+        if isinstance(image_input, (bytes, bytearray)):
+            # Received raw PNG/JPG bytes
+            raw_image = Image.open(BytesIO(image_input)).convert("RGB")
+
         else:
-            raw_image = image_input.convert("RGB")
+            raise TypeError("image_input must be bytes")
             
         original_image = self._make_square(raw_image, 512)
         src_np = np.array(original_image)
@@ -420,4 +422,10 @@ class PoseCorrectionPipeline:
         alpha = np.stack([alpha]*3, axis=2)
         composite = (gen_np * alpha) + (src_np * (1.0 - alpha))
         
-        return Image.fromarray(composite.astype(np.uint8))
+        composite_img = Image.fromarray(composite.astype(np.uint8))
+        
+        buffer = BytesIO()
+        composite_img.save(buffer, format="PNG")
+        png_bytes = buffer.getvalue()
+
+        return png_bytes

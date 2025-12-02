@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from typing import Optional, List, Dict
+from transformers import pipeline as hf_pipeline
 
 relighting_path = Path(__file__).parent / "relighting"
 sys.path.insert(0, str(relighting_path))
@@ -17,7 +18,9 @@ class RelightingModel:
         self.pipeline = init_models()
         if self.pipeline is None:
             raise RuntimeError("Failed to initialize relighting pipeline")
-        print("Relighting Model initialized successfully")
+        
+        #depth estimator model
+        self.depth_estimator = hf_pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-large-hf", device=0)
 
     def predict(self, image, mask, hdri_path=None, lights_config=None, 
                 rot_angle=0.0, guidance_scale=3.0, seed=None, 
@@ -47,6 +50,7 @@ class RelightingModel:
         #call the function
         relit_image, mask, meta = relight_object(
             pipe=self.pipeline,
+            depth_estimator=self.depth_estimator,
             image_path=image,
             mask=mask,
             hdri_path=hdri_path,

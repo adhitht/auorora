@@ -57,6 +57,41 @@ def preprocess_object(pil_img: Image.Image, mask: np.ndarray, target_res=256, bg
     return Image.fromarray(obj_only_resized), meta
 
 
+# def upscale_relit(relit_pil: Image.Image, scale_factor: float = 1.0, target_res: int = None, resample=Image.LANCZOS, upscaler_callback=None) -> Image.Image:
+#     """
+#     Upscale the relit object image in a modular way.
+
+#     - If `upscaler_callback` is provided it will be called as
+#       `upscaler_callback(relit_pil, scale_factor=scale_factor, target_res=target_res)`
+#       and its return value will be used (enables integration with Real-ESRGAN or other models).
+#     - Otherwise, a simple PIL resize is used. If `target_res` is provided it overrides
+#       `scale_factor` and the image will be resized to `(target_res, target_res)`.
+
+#     Args:
+#         relit_pil: PIL image produced by the relighting pipeline.
+#         scale_factor: Multiplicative upscale factor (1.0 = no-op).
+#         target_res: Exact square resolution to resize to (optional).
+#         resample: PIL resampling filter to use for simple resize.
+#         upscaler_callback: Optional callable for custom upscaling.
+
+#     Returns:
+#         PIL.Image: Upscaled image.
+#     """
+#     # If user provided a custom upscaler, delegate to it (keeps modularity)
+#     if upscaler_callback is not None:
+#         return upscaler_callback(relit_pil, scale_factor=scale_factor, target_res=target_res)
+
+#     if target_res is not None:
+#         w = h = int(target_res)
+#     else:
+#         if scale_factor is None or float(scale_factor) <= 1.0:
+#             return relit_pil
+#         w, h = relit_pil.size
+#         w = int(round(w * float(scale_factor)))
+#         h = int(round(h * float(scale_factor)))
+
+#     return relit_pil.resize((w, h), resample=resample)
+
 
 def read_hdri_map(hdri_path, target_res=(256, 256), rot_angle=0.0):
     """
@@ -206,7 +241,8 @@ def composite_with_shadows(depth_estimator, original_pil, relit_pil, mask, meta,
     first_target_envir_map, second_target_envir_map = read_hdri_map(
         hdri_path, target_res=(cfg.TARGET_RES, cfg.TARGET_RES), rot_angle=rot_angle
     )
-    az, alt = get_light_direction_from_hdr(second_target_envir_map, applied_rot_angle=rot_angle)
+    # az, alt = get_light_direction_from_hdr(second_target_envir_map, applied_rot_angle=rot_angle)
+    az, alt = get_light_direction_from_hdr(second_target_envir_map)
 
     #shadow strength
     light_source_strength = estimate_light_source_strength(second_target_envir_map)
@@ -285,10 +321,21 @@ def draw_geometry(img_canvas, geometry, width, height, color_bgr, opacity=1.0, e
     Helper to draw primitives (Lines or Circles) onto a canvas, for environment map generation.
     It is an inplace operation
     """
-    geo_type = geometry.get('type')
+    # Handle both object attributes and dictionary access
+    if hasattr(geometry, 'type'):
+        geo_type = geometry.type
+    elif isinstance(geometry, dict):
+        geo_type = geometry.get('type')
+    else:
+        return  # Skip if neither object nor dict
 
     if geo_type == "LineString":
-        coords = geometry['coordinates']
+        if hasattr(geometry, 'coordinates'):
+            coords = geometry.coordinates
+        elif isinstance(geometry, dict):
+            coords = geometry['coordinates']
+        else:
+            return
         pts = np.array([[int(p[0] * width), int(p[1] * height)] for p in coords], np.int32)
         pts = pts.reshape((-1, 1, 2))
 
@@ -297,11 +344,17 @@ def draw_geometry(img_canvas, geometry, width, height, color_bgr, opacity=1.0, e
         cv2.polylines(img_canvas, [pts], isClosed=False, color=color_bgr, thickness=thickness)
 
     elif geo_type == "SingleLightSource":
-        c = geometry['center']
+        if hasattr(geometry, 'center'):
+            c = geometry.center
+            raw_radius = geometry.radius if hasattr(geometry, 'radius') else 5
+        elif isinstance(geometry, dict):
+            c = geometry['center']
+            raw_radius = geometry.get('radius', 5)
+        else:
+            return
         cx, cy = int(c[0] * width), int(c[1] * height)
 
         #scaling factor : hyperparmeter
-        raw_radius = geometry.get('radius', 5)
         radius = int(raw_radius * 5) + extra_thickness
 
         #circle
@@ -317,23 +370,43 @@ def render_multi_light_layer(width, height, lights_list):
     core_layer = np.zeros((height, width, 3), dtype=np.float32)
 
     for light in lights_list:
-        props = light.get('properties', {})
-        geom = light.get('geometry', {})
+        # Handle both object attributes and dictionary access
+        if hasattr(light, 'properties'):
+            props = light.properties
+            geom = light.geometry
+        elif isinstance(light, dict):
+            props = light.get('properties', {})
+            geom = light.get('geometry', {})
+        else:
+            continue
 
         #determine the color
-        color_value = props.get('color', (1.0, 1.0, 1.0))
+        if hasattr(props, 'color'):
+            color_value = props.color
+        elif isinstance(props, dict):
+            color_value = props.get('color', (1.0, 1.0, 1.0))
+        else:
+            color_value = (1.0, 1.0, 1.0)
 
         if isinstance(color_value, str):
-            COLOR_MAP = {
-                "red": (1.0, 0.0, 0.0),
-                "green": (0.0, 1.0, 0.0),
-                "blue": (0.0, 0.0, 1.0),
-                "white": (1.0, 1.0, 1.0),
-                "orange": (1.0, 0.5, 0.0),
-                "yellow": (1.0, 1.0, 0.0),
-                "purple": (0.5, 0.0, 0.5)
-            }
-            r, g, b = COLOR_MAP.get(color_value.lower(), (1.0, 1.0, 1.0))
+            # Handle hex color codes
+            if color_value.startswith('#'):
+                hex_color = color_value.lstrip('#')
+                r = int(hex_color[0:2], 16) / 255.0
+                g = int(hex_color[2:4], 16) / 255.0
+                b = int(hex_color[4:6], 16) / 255.0
+            else:
+                # Handle named colors
+                COLOR_MAP = {
+                    "red": (1.0, 0.0, 0.0),
+                    "green": (0.0, 1.0, 0.0),
+                    "blue": (0.0, 0.0, 1.0),
+                    "white": (1.0, 1.0, 1.0),
+                    "orange": (1.0, 0.5, 0.0),
+                    "yellow": (1.0, 1.0, 0.0),
+                    "purple": (0.5, 0.0, 0.5)
+                }
+                r, g, b = COLOR_MAP.get(color_value.lower(), (1.0, 1.0, 1.0))
         else:
             r, g, b = color_value
 
@@ -341,7 +414,12 @@ def render_multi_light_layer(width, height, lights_list):
         glow_r, glow_g, glow_b = r**2.0, g**2.0, b**2.0
 
         glow_color_bgr = (glow_b, glow_g, glow_r)
-        core_color_bgr = (1.0, 1.0, 1.0)
+        tint_strength = 0.3  # adjust between 0.2–0.4 for subtle tint
+        core_r = (1.0 * (1 - tint_strength)) + (r * tint_strength)
+        core_g = (1.0 * (1 - tint_strength)) + (g * tint_strength)
+        core_b = (1.0 * (1 - tint_strength)) + (b * tint_strength)
+
+        core_color_bgr = (core_b, core_g, core_r)
 
         #drawing the glow part
         temp_glow = np.zeros((height, width, 3), dtype=np.float32)
