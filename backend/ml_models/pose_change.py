@@ -248,6 +248,32 @@ class PoseCorrectionPipeline:
         M[1, 2] += (p_s_new[1] - pivot_y)
 
         return cv2.warpAffine(rgba, M, (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR)
+    
+    def map_coords_to_model_space(self, x, y, orig_w, orig_h, target_size=512):
+        """
+        Maps a point (x, y) from original image space to the 512x512 
+        centered-square space used by the model.
+        """
+        # 1. Determine the square dimension (Logic from _make_square)
+        max_dim = max(orig_w, orig_h)
+        
+        # 2. Calculate the Padding (Offset)
+        # The image is pasted at these offsets
+        pad_x = (max_dim - orig_w) // 2
+        pad_y = (max_dim - orig_h) // 2
+        
+        # 3. Apply Padding
+        x_padded = x + pad_x
+        y_padded = y + pad_y
+        
+        # 4. Calculate Scale Factor
+        scale = target_size / max_dim
+        
+        # 5. Apply Scaling
+        x_new = x_padded * scale
+        y_new = y_padded * scale
+        
+        return x_new, y_new
 
     def process_request(self, image_input, offset_config):
         """
@@ -269,12 +295,12 @@ class PoseCorrectionPipeline:
         HIP_SCALE = 1.0
         # Unpack Configuration
         try:
-            RIGHT_WRIST_OFFSET = tuple(offset_config[0])
-            RIGHT_ELBOW_OFFSET = tuple(offset_config[1])
-            LEFT_WRIST_OFFSET = tuple(offset_config[2])
-            LEFT_ELBOW_OFFSET = tuple(offset_config[3])
-            RIGHT_HIP_OFFSET = tuple(offset_config[4])
-            LEFT_HIP_OFFSET = tuple(offset_config[5])
+            RIGHT_WRIST = tuple(offset_config[0])
+            RIGHT_ELBOW = tuple(offset_config[1])
+            LEFT_WRIST = tuple(offset_config[2])
+            LEFT_ELBOW = tuple(offset_config[3])
+            RIGHT_HIP = tuple(offset_config[4])
+            LEFT_HIP = tuple(offset_config[5])
         except (IndexError, ValueError) as e:
             raise ValueError("Invalid offset_config format. Expected list of length 7.") from e
 
@@ -288,6 +314,13 @@ class PoseCorrectionPipeline:
         
         orig_w, orig_h = raw_image.size
 
+        RIGHT_WRIST = self.map_coords_to_model_space(RIGHT_WRIST[0], RIGHT_WRIST[1], orig_w, orig_h)
+        RIGHT_ELBOW = self.map_coords_to_model_space(RIGHT_ELBOW[0], RIGHT_ELBOW[1], orig_w, orig_h)
+        LEFT_WRIST = self.map_coords_to_model_space(LEFT_WRIST[0], LEFT_WRIST[1], orig_w, orig_h)
+        LEFT_ELBOW = self.map_coords_to_model_space(LEFT_ELBOW[0], LEFT_ELBOW[1], orig_w, orig_h)
+        RIGHT_HIP = self.map_coords_to_model_space(RIGHT_HIP[0], RIGHT_HIP[1], orig_w, orig_h)
+        LEFT_HIP = self.map_coords_to_model_space(LEFT_HIP[0], LEFT_HIP[1], orig_w, orig_h)
+
         original_image = self._make_square(raw_image, 512)
         src_np = np.array(original_image)
         
@@ -295,6 +328,47 @@ class PoseCorrectionPipeline:
         mp_results, shape = self.mp_helper.process_image(original_image)
         kps_old = self.mp_helper.get_coco_keypoints(mp_results, shape)
         
+
+        # RIGHT_WRIST_OFFSET = (RIGHT_WRIST[0] - kps_old[10][0], RIGHT_WRIST[1] - kps_old[10][1])
+        # RIGHT_ELBOW_OFFSET = (RIGHT_ELBOW[0] - kps_old[8][0], RIGHT_ELBOW[1] - kps_old[8][1])
+        # LEFT_WRIST_OFFSET = (LEFT_WRIST[0] - kps_old[9][0], LEFT_WRIST[1] - kps_old[9][1])
+        # LEFT_ELBOW_OFFSET = (LEFT_ELBOW[0] - kps_old[7][0], LEFT_ELBOW[1] - kps_old[7][1])
+        # RIGHT_HIP_OFFSET = (RIGHT_HIP[0] - kps_old[12][0], RIGHT_HIP[1] - kps_old[12][1])
+        # LEFT_HIP_OFFSET = (LEFT_HIP[0] - kps_old[11][0], LEFT_HIP[1] - kps_old[11][1])
+
+        def axis_zero(diff):
+            return 0 if abs(diff) < 2 else diff
+
+        # RIGHT WRIST
+        dx = RIGHT_WRIST[0] - kps_old[10][0]
+        dy = RIGHT_WRIST[1] - kps_old[10][1]
+        RIGHT_WRIST_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # RIGHT ELBOW
+        dx = RIGHT_ELBOW[0] - kps_old[8][0]
+        dy = RIGHT_ELBOW[1] - kps_old[8][1]
+        RIGHT_ELBOW_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # LEFT WRIST
+        dx = LEFT_WRIST[0] - kps_old[9][0]
+        dy = LEFT_WRIST[1] - kps_old[9][1]
+        LEFT_WRIST_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # LEFT ELBOW
+        dx = LEFT_ELBOW[0] - kps_old[7][0]
+        dy = LEFT_ELBOW[1] - kps_old[7][1]
+        LEFT_ELBOW_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # RIGHT HIP
+        dx = RIGHT_HIP[0] - kps_old[12][0]
+        dy = RIGHT_HIP[1] - kps_old[12][1]
+        RIGHT_HIP_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # LEFT HIP
+        dx = LEFT_HIP[0] - kps_old[11][0]
+        dy = LEFT_HIP[1] - kps_old[11][1]
+        LEFT_HIP_OFFSET = (axis_zero(dx), axis_zero(dy))
+
         # --- 3. Segmentation ---
         person_mask = self._get_person_mask(src_np, kps_old)
         
