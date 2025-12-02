@@ -540,8 +540,10 @@ class PoseCorrectionPipeline:
             orig_h           
         )
 
-        buffer = BytesIO()
-        restored_img.save(buffer, format="PNG")
-        png_bytes = buffer.getvalue()
+        # buffer = BytesIO()
+        # restored_img.save(buffer, format="PNG")
+        # png_bytes = buffer.getvalue()
 
-        return png_bytes
+        # return png_bytes
+
+        return restored_img
