@@ -133,7 +133,6 @@ class PoseDetectionService {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
 
-    // Fill with gray background (neutral)
     canvas.drawRect(
       ui.Rect.fromLTWH(0, 0, _inputSize.toDouble(), _inputSize.toDouble()),
       ui.Paint()..color = const ui.Color(0xFF808080),

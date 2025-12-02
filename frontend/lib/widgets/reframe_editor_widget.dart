@@ -21,13 +21,14 @@ import 'pose_visualization_overlay.dart';
 import 'segmented_cutout_view.dart';
 import 'segmentation_feedback_overlay.dart';
 import 'loading_indicator.dart';
-import '../services/lama_fp16_inpainting_service.dart';
+import '../services/inpainting_service.dart';
 import '../services/rainnet_harmonization_service.dart';
 
 enum ReframeMode { initial, segmenting, segmented, moving, posing }
 
 class ReframeEditorWidget extends StatefulWidget {
   final File imageFile;
+  final SegmentationService segmentationService; // Add parameter
   final VoidCallback onCancel;
   final Function(File reframedFile) onApply;
   final Function(String message, bool isSuccess)? onShowMessage;
@@ -36,6 +37,7 @@ class ReframeEditorWidget extends StatefulWidget {
   const ReframeEditorWidget({
     super.key,
     required this.imageFile,
+    required this.segmentationService, // Add required parameter
     required this.onCancel,
     required this.onApply,
     this.onShowMessage,
@@ -60,8 +62,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   double _lastScale = 1.0;
 
   final PoseDetectionService _poseService = PoseDetectionService();
-  final SegmentationService _segmentationService = SegmentationService();
-  final LamaFP16InpaintingService _inpaintingService = LamaFP16InpaintingService();
+  final InpaintingService _inpaintingService = InpaintingService();
   final RainnetHarmonizationService _harmonizationService = RainnetHarmonizationService();
   final PoseChangingService _poseChangingService = PoseChangingService();
 
@@ -85,6 +86,10 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   }
 
   Future<void> _initializeServices() async {
+    // Delay initialization to allow screen to load first
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
     try {
       await _poseService.initialize();
       if (mounted) {
@@ -96,16 +101,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       debugPrint('Failed to initialize pose service: $e');
     }
 
-    try {
-      await _segmentationService.initialize();
-      if (mounted) {
-        _segmentationService.encodeImage(widget.imageFile).catchError((e) {
-          debugPrint('Background encoding failed: $e');
-        });
-      }
-    } catch (e) {
-      debugPrint('Failed to initialize segmentation service: $e');
-    }
+    // Segmentation initialization handled by parent
 
     try {
       await _inpaintingService.initialize();
@@ -152,7 +148,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   @override
   void dispose() {
     _poseService.dispose();
-    _segmentationService.dispose();
     _inpaintingService.dispose();
     _harmonizationService.dispose();
     _poseChangingService.shutdown();
@@ -217,22 +212,22 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     });
 
     try {
-      if (!_segmentationService.isEncoded) {
-        await _segmentationService.encodeImage(widget.imageFile);
+      if (!widget.segmentationService.isEncoded) {
+        await widget.segmentationService.encodeImage(widget.imageFile);
       }
 
       if (mounted &&
-          _segmentationService.originalWidth > 0 &&
-          _segmentationService.originalHeight > 0) {
+          widget.segmentationService.originalWidth > 0 &&
+          widget.segmentationService.originalHeight > 0) {
         setState(() {
           _imageSize = Size(
-            _segmentationService.originalWidth.toDouble(),
-            _segmentationService.originalHeight.toDouble(),
+            widget.segmentationService.originalWidth.toDouble(),
+            widget.segmentationService.originalHeight.toDouble(),
           );
         });
       }
 
-      final maskResult = await _segmentationService.getMaskForPoint(x, y);
+      final maskResult = await widget.segmentationService.getMaskForPoint(x, y);
 
       if (maskResult != null) {
         final feedbackImage = await _createMaskImage(
@@ -279,7 +274,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
     try {
       if (_cutoutResult == null) {
-        final cutout = await _segmentationService.createCutout(
+        final cutout = await widget.segmentationService.createCutout(
           widget.imageFile,
         );
         if (mounted) {
@@ -291,7 +286,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       }
 
       if (_isMagicMoveEnabled && _cleanBackgroundBytes == null) {
-        final segments = await _segmentationService.getAllSegments();
+        final segments = await widget.segmentationService.getAllSegments();
         if (segments.isNotEmpty) {
           final inpaintedBytes = await _inpaintingService.inpaint(
             widget.imageFile,

@@ -2,10 +2,18 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class LiquidGlassTheme {
-  // Primary colors
-  static const Color primary = Color(0xFF007AFF);
+    // Primary colors
+    // 0091FF
+    // bottom bar color
+    // 008FFC
+
+    //old primary color
+    // static const Color primary = Color(0xFF007AFF);
+
+  static const Color primary = Color(0xFF0091FF);
   static const Color background = Color(0xFF000000);
   static const Color surface = Color(0xFF1C1C1E);
+  static const Color bottomBarPrimaryColor = Color(0xFF008FFC);
 
   // Glass effects
   static const Color glassLight = Color(0xBFFFFFFF);

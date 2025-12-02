@@ -16,13 +16,20 @@ import 'glass_button.dart';
 import 'segmentation_feedback_overlay.dart';
 import 'light_paint_stroke.dart';
 import 'light_paint_painter.dart';
+import 'liquid_color_slider.dart';
+import 'liquid_slider.dart';
 import 'package:apex/models/relighting_model.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+enum RelightMode {
+  relight,
+  custom,
+}
 
 enum RelightTool {
   exposure,
   contrast,
-  temperature,
-  lightPaint;
+  temperature;
 
   String get label {
     switch (this) {
@@ -32,8 +39,6 @@ enum RelightTool {
         return 'Contrast';
       case RelightTool.temperature:
         return 'Warmth';
-      case RelightTool.lightPaint:
-        return 'Light Paint';
     }
   }
 
@@ -45,14 +50,13 @@ enum RelightTool {
         return Icons.contrast;
       case RelightTool.temperature:
         return Icons.thermostat;
-      case RelightTool.lightPaint:
-        return Icons.brush;
     }
   }
 }
 
 class RelightEditorWidget extends StatefulWidget {
   final File imageFile;
+  final SegmentationService segmentationService; // Add parameter
   final VoidCallback onCancel;
   final Function(File relitFile, Map<String, dynamic> adjustments) onApply;
   final Function(String message, bool isSuccess)? onShowMessage;
@@ -61,6 +65,7 @@ class RelightEditorWidget extends StatefulWidget {
   const RelightEditorWidget({
     super.key,
     required this.imageFile,
+    required this.segmentationService, // Add required parameter
     required this.onCancel,
     required this.onApply,
     this.onShowMessage,
@@ -74,13 +79,16 @@ class RelightEditorWidget extends StatefulWidget {
 class RelightEditorWidgetState extends State<RelightEditorWidget>
     with TickerProviderStateMixin {
   bool _isProcessing = false;
-  RelightTool? _selectedTool;
+  bool _isInitializing = true; // Add initializing state
+
   late AnimationController _panelAnimationController;
   late Animation<double> _panelAnimation;
   late AnimationController _zoomAnimationController;
 
+  RelightMode _currentMode = RelightMode.relight;
+
   // Segmentation
-  final SegmentationService _segmentationService = SegmentationService();
+  // Remove local instantiation
   bool _isSegmentationActive = false;
   bool _isSegmenting = false;
   ui.Image? _maskImage;
@@ -90,11 +98,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     RelightTool.exposure: 0.0,
     RelightTool.contrast: 0.0,
     RelightTool.temperature: 0.0,
-    RelightTool.lightPaint: 0.0, // Not used directly, but keeps map consistent
   };
 
-  // Light Paint State
-  bool _isLightPaintActive = false;
+  bool _isLightPaintActive = true;
   bool _isLightPaintSelecting = false;
   final TransformationController _transformationController =
       TransformationController();
@@ -110,7 +116,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
   @override
   void initState() {
     super.initState();
-    _initializeSegmentation();
+    _initialize();
     _panelAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -130,6 +136,15 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     });
   }
 
+  Future<void> _initialize() async {
+    await Future.delayed(const Duration(seconds: 1));
+    if (mounted) {
+      setState(() {
+        _isInitializing = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _panelAnimationController.dispose();
@@ -139,15 +154,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
   }
 
   Future<void> _initializeSegmentation() async {
-    try {
-      await _segmentationService.initialize();
-      await _segmentationService.encodeImage(widget.imageFile);
-      if (mounted) {
-        setState(() {});
-      }
-    } catch (e) {
-      debugPrint('Error initializing segmentation: $e');
-    }
+    // Handled by parent
   }
 
   // Future<Uint8List?> _getMaskBytes() async {
@@ -511,14 +518,15 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
 
   @override
   Widget build(BuildContext context) {
-    if (_segmentationService.originalWidth == 0 ||
-        _segmentationService.originalHeight == 0) {
+    if (_isInitializing ||
+        widget.segmentationService.originalWidth == 0 ||
+        widget.segmentationService.originalHeight == 0) {
       return const Center(child: CircularProgressIndicator());
     }
 
     final aspectRatio =
-        _segmentationService.originalWidth /
-        _segmentationService.originalHeight;
+        widget.segmentationService.originalWidth /
+        widget.segmentationService.originalHeight;
 
     return Stack(
       children: [
@@ -619,7 +627,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
 
                         if (_isLightPaintActive) ...[
                           // Greyish canvas overlay
-                          Container(color: Colors.black.withValues(alpha: 0.6)),
+                          Container(color: Colors.black.withValues(alpha: 0.2)),
                           // Drawing layer
                           RepaintBoundary(
                             child: CustomPaint(
@@ -783,7 +791,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
               color: Colors.black.withValues(alpha: 0.45),
               child: const Center(
                 child: CircularProgressIndicator(
-                  color: LiquidGlassTheme.primary,
+                  color: LiquidGlassTheme.bottomBarPrimaryColor,
                 ),
               ),
             ),
@@ -839,13 +847,13 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
       final double relativeX =
           (localPosition.dx - offsetX) /
           destinationSize.width *
-          _segmentationService.originalWidth;
+          widget.segmentationService.originalWidth;
       final double relativeY =
           (localPosition.dy - offsetY) /
           destinationSize.height *
-          _segmentationService.originalHeight;
+          widget.segmentationService.originalHeight;
 
-      final result = await _segmentationService.getMaskForPoint(
+      final result = await widget.segmentationService.getMaskForPoint(
         relativeX,
         relativeY,
       );
@@ -893,8 +901,8 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
         setState(() {
           _maskImage = maskImage;
           if (_isLightPaintSelecting) {
-            final double scaleX = _segmentationService.originalWidth / width;
-            final double scaleY = _segmentationService.originalHeight / height;
+            final double scaleX = widget.segmentationService.originalWidth / width;
+            final double scaleY = widget.segmentationService.originalHeight / height;
 
             _selectedObjectBounds = Rect.fromLTRB(
               minX * scaleX,
@@ -935,9 +943,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     if (_selectedObjectBounds == null) return;
 
     // Convert mask bounds to view coordinates
-    final double scaleX = imageSize.width / _segmentationService.originalWidth;
+    final double scaleX = imageSize.width / widget.segmentationService.originalWidth;
     final double scaleY =
-        imageSize.height / _segmentationService.originalHeight;
+        imageSize.height / widget.segmentationService.originalHeight;
 
     final double viewMinX = offsetX + _selectedObjectBounds!.left * scaleX;
     final double viewMinY = offsetY + _selectedObjectBounds!.top * scaleY;
@@ -1037,10 +1045,6 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
   }
 
   Widget buildControlPanel() {
-    if (_isLightPaintActive) {
-      return _buildLightPaintControlPanel();
-    }
-
     return FadeTransition(
       opacity: _panelAnimation,
       child: SlideTransition(
@@ -1065,69 +1069,140 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _selectedTool == null
-                        ? _buildCompactToolGrid()
-                        : _buildCompactSlider(),
-                    if (_selectedTool == null) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildCompactButton(
-                            icon: Icons.close,
-                            color: Colors.white,
-                            onTap: widget.onCancel,
-                          ),
-                          _buildCompactButton(
-                            icon: _isSegmentationActive
-                                ? Icons.person_search
-                                : Icons.person_search_outlined,
-                            color: _isSegmentationActive
-                                ? LiquidGlassTheme.primary
-                                : Colors.white,
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              setState(() {
-                                _isSegmentationActive = !_isSegmentationActive;
-                                _isLightPaintSelecting =
-                                    false; // Disable light paint selection if switching
-                                if (!_isSegmentationActive) {
-                                  // _maskImage = null;
-                                }
-                              });
-                            },
-                          ),
-                          _buildCompactButton(
-                            icon: Icons.brush,
-                            color: _isLightPaintSelecting
-                                ? LiquidGlassTheme.primary
-                                : Colors.white,
-                            onTap: () {
-                              HapticFeedback.mediumImpact();
-                              setState(() {
-                                _isLightPaintSelecting =
-                                    !_isLightPaintSelecting;
-                                _isSegmentationActive =
-                                    false; // Disable regular segmentation if switching
-                                if (!_isLightPaintSelecting) {
-                                  // Cancel selection
-                                }
-                              });
-                            },
-                          ),
-                          _buildCompactButton(
-                            icon: Icons.check,
-                            color: LiquidGlassTheme.primary,
-                            onTap: _applyRelight,
-                          ),
-                        ],
-                      ),
-                    ],
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _currentMode == RelightMode.relight
+                          ? _buildLightPaintControls()
+                          : _buildAdjustmentControls(),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _buildBottomBar(),
                   ],
                 ),
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Select Object Button
+        _buildSvgIconButton(
+          assetPath: 'assets/icons/select_object.svg',
+          isActive: _isSegmentationActive || _isLightPaintSelecting,
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            setState(() {
+              _isSegmentationActive = !_isSegmentationActive;
+              _isLightPaintSelecting = false;
+              if (!_isSegmentationActive) {
+                // _maskImage = null;
+              }
+            });
+          },
+        ),
+
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildModeButton(
+                assetPath: 'assets/icons/paint_light.svg',
+                mode: RelightMode.relight,
+              ),
+              const SizedBox(width: 4),
+              _buildModeButton(
+                assetPath: 'assets/icons/custom.svg',
+                mode: RelightMode.custom,
+              ),
+            ],
+          ),
+        ),
+
+        _buildSvgIconButton(
+          assetPath: 'assets/icons/tick.svg',
+          isActive: false,
+          onTap: _applyRelight,
+          isPrimary: false,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModeButton({
+    required String assetPath,
+    required RelightMode mode,
+  }) {
+    final isSelected = _currentMode == mode;
+    return GlassButton(
+      onTap: () {
+        if (_currentMode != mode) {
+          HapticFeedback.selectionClick();
+          setState(() {
+            _currentMode = mode;
+            _isLightPaintActive = mode == RelightMode.relight;
+
+          });
+          widget.onControlPanelReady?.call(buildControlPanel);
+        }
+      },
+      width: 36,
+      height: 36,
+      backgroundColor: Colors.transparent,
+      borderColor: Colors.transparent,
+      glassColor: Colors.transparent,
+      child: SvgPicture.asset(
+        assetPath,
+        width: 20,
+        height: 20,
+        colorFilter: ColorFilter.mode(
+          isSelected ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.5),
+          BlendMode.srcIn,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSvgIconButton({
+    required String assetPath,
+    required VoidCallback onTap,
+    bool isActive = false,
+    bool isPrimary = false,
+  }) {
+    return GlassButton(
+      onTap: onTap,
+      width: 44,
+      height: 44,
+      backgroundColor: isPrimary 
+          ? Colors.white.withValues(alpha: 0.1) 
+          : (isActive ? LiquidGlassTheme.bottomBarPrimaryColor.withValues(alpha: 0.2) : Colors.transparent),
+      borderColor: isPrimary
+          ? Colors.white.withValues(alpha: 0.2)
+          : (isActive ? LiquidGlassTheme.bottomBarPrimaryColor : Colors.white.withValues(alpha: 0.2)),
+      child: SvgPicture.asset(
+        assetPath,
+        width: 20,
+        height: 20,
+        colorFilter: ColorFilter.mode(
+          isActive ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.6),
+          BlendMode.srcIn,
         ),
       ),
     );
@@ -1142,509 +1217,191 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     }
   }
 
-  Widget _buildLightPaintControlPanel() {
-    return FadeTransition(
-      opacity: _panelAnimation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(_panelAnimation),
-        child: LiquidGlassLayer(
-          settings: const LiquidGlassSettings(
-            thickness: 20,
-            blur: 25,
-            glassColor: LiquidGlassTheme.glassDark,
-            lightIntensity: 0.12,
-            saturation: 1.1,
-          ),
-          child: LiquidGlass(
-            shape: LiquidRoundedSuperellipse(borderRadius: 20),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Light Paint',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Color Picker (Simple row for now)
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children:
-                            [
-                              Colors.white,
-                              Colors.amber,
-                              Colors.orange,
-                              Colors.red,
-                              Colors.purple,
-                              Colors.blue,
-                              Colors.cyan,
-                              Colors.green,
-                            ].map((color) {
-                              final isSelected = _currentBrushColor == color;
-                              return GestureDetector(
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  setState(() => _currentBrushColor = color);
-                                  widget.onControlPanelReady?.call(
-                                    buildControlPanel,
-                                  );
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: color,
-                                    shape: BoxShape.circle,
-                                    border: isSelected
-                                        ? Border.all(
-                                            color: Colors.white,
-                                            width: 2,
-                                          )
-                                        : null,
-                                    boxShadow: isSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: color.withOpacity(0.5),
-                                              blurRadius: 8,
-                                              spreadRadius: 2,
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Brightness Slider
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.brightness_low,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                        Expanded(
-                          child: SliderTheme(
-                            data: SliderThemeData(
-                              trackHeight: 4,
-                              activeTrackColor: LiquidGlassTheme.primary,
-                              inactiveTrackColor: Colors.white.withOpacity(0.2),
-                              thumbColor: Colors.white,
-                              overlayColor: LiquidGlassTheme.primary
-                                  .withOpacity(0.1),
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 8,
-                              ),
-                            ),
-                            child: Slider(
-                              value: _currentBrushBrightness,
-                              min: 0.1,
-                              max: 1.0,
-                              onChanged: (v) {
-                                setState(() => _currentBrushBrightness = v);
-                                widget.onControlPanelReady?.call(
-                                  buildControlPanel,
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        const Icon(
-                          Icons.brightness_high,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildCompactButton(
-                          icon: Icons.close,
-                          color: Colors.white,
-                          onTap: () {
-                            // Cancel Light Paint
-                            _resetZoom();
-                            setState(() {
-                              _isLightPaintActive = false;
-                              _lightPaintStrokes.clear();
-                              _selectedTool = null; // Reset tool selection
-                              _selectedObjectBounds = null;
-                            });
-                            widget.onControlPanelReady?.call(buildControlPanel);
-                          },
-                        ),
-                        _buildCompactButton(
-                          icon: Icons.undo,
-                          color: Colors.white,
-                          onTap: () {
-                            if (_lightPaintStrokes.isNotEmpty) {
-                              setState(() => _lightPaintStrokes.removeLast());
-                            }
-                          },
-                        ),
-                        _buildCompactButton(
-                          icon: _lightPaintTool == LightPaintType.brush
-                              ? Icons.brush
-                              : Icons.light_mode,
-                          color: Colors.white,
-                          onTap: () {
-                            HapticFeedback.mediumImpact();
-                            setState(() {
-                              _isLightPaintMoving = false; // Disable move mode
-                              _lightPaintTool =
-                                  _lightPaintTool == LightPaintType.brush
-                                  ? LightPaintType.spot
-                                  : LightPaintType.brush;
-                            });
-                            widget.onControlPanelReady?.call(buildControlPanel);
-                          },
-                        ),
-                        _buildCompactButton(
-                          icon: Icons.pan_tool,
-                          color: _isLightPaintMoving
-                              ? LiquidGlassTheme.primary
-                              : Colors.white,
-                          onTap: () {
-                            HapticFeedback.mediumImpact();
-                            setState(() {
-                              _isLightPaintMoving = !_isLightPaintMoving;
-                            });
-                            widget.onControlPanelReady?.call(buildControlPanel);
-                          },
-                        ),
-                        _buildCompactButton(
-                          icon: Icons.check,
-                          color: LiquidGlassTheme.primary,
-                          onTap: () {
-                            // Apply Light Paint
-                            _resetZoom();
-                            setState(() {
-                              _isLightPaintActive = false;
-                              _selectedTool = null;
-                              _selectedObjectBounds = null;
-                              // _maskImage =
-                              //     null; // Remove feedback after applying
-                            });
-                            widget.onControlPanelReady?.call(buildControlPanel);
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCompactToolGrid() {
+  Widget _buildLightPaintControls() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Tool Grid
-        _buildToolGrid(),
-      ],
-    );
-  }
-
-  Widget _buildToolGrid() {
-    final tools = RelightTool.values
-        .where((t) => t != RelightTool.lightPaint)
-        .toList();
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      alignment: WrapAlignment.center,
-      children: tools.map((tool) => _buildCompactToolButton(tool)).toList(),
-    );
-  }
-
-  Widget _buildCompactToolButton(RelightTool tool) {
-    final hasValue = (_values[tool] ?? 0).abs() > 0.01;
-
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        setState(() => _selectedTool = tool);
-        widget.onControlPanelReady?.call(buildControlPanel);
-      },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: hasValue
-                    ? LiquidGlassTheme.primary.withValues(alpha: 0.6)
-                    : Colors.white.withValues(alpha: 0.15),
-                width: hasValue ? 1.5 : 1,
-              ),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Icon(
-                    tool.icon,
-                    color: hasValue
-                        ? LiquidGlassTheme.primary
-                        : Colors.white.withValues(alpha: 0.9),
-                    size: 20,
-                  ),
-                ),
-                if (hasValue)
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: LiquidGlassTheme.primary,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: LiquidGlassTheme.primary.withValues(
-                              alpha: 0.5,
-                            ),
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            tool.label,
-            style: TextStyle(
-              color: hasValue
-                  ? LiquidGlassTheme.primary
-                  : Colors.white.withValues(alpha: 0.6),
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactSlider() {
-    final tool = _selectedTool!;
-    final value = _values[tool]!;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          tool.label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+        _buildToolsGroup(),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: LiquidColorSlider(
+            color: _currentBrushColor,
+            onColorChanged: (color) {
+              setState(() => _currentBrushColor = color);
+              widget.onControlPanelReady?.call(buildControlPanel);
+            },
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 5),
         Row(
           children: [
-            // Back Button
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.mediumImpact();
-                setState(() => _selectedTool = null);
-                widget.onControlPanelReady?.call(buildControlPanel);
-              },
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Slider Track
+            const Icon(Icons.brightness_low, color: Colors.white70, size: 16),
             Expanded(
-              child: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Center Line
-                    Container(
-                      width: 1.5,
-                      height: 20,
-                      color: Colors.white.withValues(alpha: 0.3),
-                    ),
-                    // Slider
-                    SliderTheme(
-                      data: SliderThemeData(
-                        trackHeight: 40,
-                        activeTrackColor: Colors.transparent,
-                        inactiveTrackColor: Colors.transparent,
-                        thumbColor: LiquidGlassTheme.primary,
-                        overlayColor: LiquidGlassTheme.primary.withValues(
-                          alpha: 0.1,
-                        ),
-                        thumbShape: const _MinimalThumbShape(),
-                        trackShape: const RoundedRectSliderTrackShape(),
-                      ),
-                      child: Slider(
-                        value: value,
-                        min: -1.0,
-                        max: 1.0,
-                        onChanged: (v) {
-                          HapticFeedback.selectionClick();
-                          setState(() => _values[tool] = v);
-                          widget.onControlPanelReady?.call(buildControlPanel);
-                        },
-                      ),
-                    ),
-                  ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: LiquidSlider(
+                  value: _currentBrushBrightness,
+                  min: 0.1,
+                  max: 1.0,
+                  onChanged: (v) {
+                    setState(() => _currentBrushBrightness = v);
+                    widget.onControlPanelReady?.call(buildControlPanel);
+                  },
                 ),
               ),
             ),
-
-            const SizedBox(width: 12),
-
-            // Value Display
-            Container(
-              width: 48,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(
-                child: Text(
-                  (value * 100).toInt().toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Apply Button
-            GestureDetector(
-              onTap: _applyRelight,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: LiquidGlassTheme.primary.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: LiquidGlassTheme.primary.withValues(alpha: 0.5),
-                    width: 1,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.check,
-                  color: LiquidGlassTheme.primary,
-                  size: 20,
-                ),
-              ),
-            ),
+            const Icon(Icons.brightness_high, color: Colors.white70, size: 16),
           ],
         ),
       ],
     );
   }
-}
 
-class _MinimalThumbShape extends SliderComponentShape {
-  const _MinimalThumbShape();
-
-  @override
-  Size getPreferredSize(bool isEnabled, bool isDiscrete) => const Size(3, 28);
-
-  @override
-  void paint(
-    PaintingContext context,
-    Offset center, {
-    required Animation<double> activationAnimation,
-    required Animation<double> enableAnimation,
-    required bool isDiscrete,
-    required TextPainter labelPainter,
-    required RenderBox parentBox,
-    required SliderThemeData sliderTheme,
-    required TextDirection textDirection,
-    required double value,
-    required double textScaleFactor,
-    required Size sizeWithOverflow,
-  }) {
-    final canvas = context.canvas;
-
-    // Glow
-    final glowPaint = Paint()
-      ..color = sliderTheme.thumbColor!.withValues(alpha: 0.3)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: center, width: 3, height: 28),
-        const Radius.circular(1.5),
+  Widget _buildToolsGroup() {
+    return LiquidGlassLayer(
+      settings: const LiquidGlassSettings(
+        thickness: 20,
+        blur: 15,
+        glassColor: LiquidGlassTheme.glassDark,
+        lightIntensity: 0.1,
+        saturation: 1.0,
       ),
-      glowPaint,
+      child: LiquidGlass(
+        shape: LiquidRoundedSuperellipse(borderRadius: 24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 0.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Spot Light Tool
+              _buildGroupToolButton(
+                assetPath: 'assets/icons/bulb.svg',
+                isActive: !_isLightPaintMoving && _lightPaintTool == LightPaintType.spot,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  setState(() {
+                    _isLightPaintMoving = false;
+                    _lightPaintTool = LightPaintType.spot;
+                  });
+                  widget.onControlPanelReady?.call(buildControlPanel);
+                },
+              ),
+              const SizedBox(width: 12),
+              
+              // Brush Tool
+              _buildGroupToolButton(
+                assetPath: 'assets/icons/pencil.svg',
+                isActive: !_isLightPaintMoving && _lightPaintTool == LightPaintType.brush,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  setState(() {
+                    _isLightPaintMoving = false;
+                    _lightPaintTool = LightPaintType.brush;
+                  });
+                  widget.onControlPanelReady?.call(buildControlPanel);
+                },
+              ),
+              const SizedBox(width: 12),
+              
+              // Pan Tool
+              _buildGroupToolButton(
+                assetPath: 'assets/icons/hand.svg',
+                isActive: _isLightPaintMoving,
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                  setState(() {
+                    _isLightPaintMoving = true;
+                  });
+                  widget.onControlPanelReady?.call(buildControlPanel);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
     );
+  }
 
-    // Thumb
-    final paint = Paint()
-      ..color = sliderTheme.thumbColor!
-      ..style = PaintingStyle.fill;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: center, width: 3, height: 28),
-        const Radius.circular(1.5),
+  Widget _buildGroupToolButton({
+    required String assetPath,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        color: Colors.transparent,
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          assetPath,
+          width: 20,
+          height: 20,
+          colorFilter: ColorFilter.mode(
+            isActive ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.4),
+            BlendMode.srcIn,
+          ),
+        ),
       ),
-      paint,
+    );
+  }
+
+  Widget _buildAdjustmentControls() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildAdjustmentSliderRow(RelightTool.exposure),
+        const SizedBox(height: 16),
+        _buildAdjustmentSliderRow(RelightTool.contrast),
+        const SizedBox(height: 16),
+        _buildAdjustmentSliderRow(RelightTool.temperature),
+      ],
+    );
+  }
+
+  Widget _buildAdjustmentSliderRow(RelightTool tool) {
+    return Row(
+      children: [
+        // Icon
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            tool.icon,
+            color: Colors.white.withValues(alpha: 0.8),
+            size: 18,
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Slider
+        Expanded(
+          child: LiquidSlider(
+            value: _values[tool] ?? 0.0,
+            min: -1.0,
+            max: 1.0,
+            onChanged: (value) {
+              setState(() {
+                _values[tool] = value;
+              });
+              widget.onControlPanelReady?.call(buildControlPanel);
+            },
+          ),
+        ),
+      ],
     );
   }
 }

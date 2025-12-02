@@ -29,6 +29,8 @@ class EditorBottomBar extends StatefulWidget {
   final bool canUndo;
   final bool canRedo;
   final List<String>? detectedTags;
+  final Set<String>? dismissedSuggestions;
+  final Function(String)? onSuggestionSelected;
 
   const EditorBottomBar({
     super.key,
@@ -41,6 +43,8 @@ class EditorBottomBar extends StatefulWidget {
     this.canUndo = false,
     this.canRedo = false,
     this.detectedTags,
+    this.dismissedSuggestions,
+    this.onSuggestionSelected,
   });
 
   @override
@@ -73,10 +77,26 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     
     if (mounted) {
       setState(() {
-        _currentSuggestions = _suggestionsService.getSuggestionsForTags(widget.detectedTags);
+        final allSuggestions = _suggestionsService.getSuggestionsForTags(widget.detectedTags);
+        if (widget.dismissedSuggestions != null) {
+          _currentSuggestions = allSuggestions
+              .where((s) => !widget.dismissedSuggestions!.contains(s))
+              .toList();
+        } else {
+          _currentSuggestions = allSuggestions;
+        }
       });
     }
     _isLoadingSuggestions = false;
+  }
+
+  @override
+  void didUpdateWidget(EditorBottomBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.detectedTags != oldWidget.detectedTags || 
+        widget.dismissedSuggestions != oldWidget.dismissedSuggestions) {
+      _loadSuggestions();
+    }
   }
 
   @override

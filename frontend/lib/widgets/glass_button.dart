@@ -17,7 +17,14 @@ class GlassButton extends StatelessWidget {
     this.width = 42,
     this.height = 42,
     this.padding,
+    this.backgroundColor,
+    this.borderColor,
+    this.glassColor,
   });
+
+  final Color? backgroundColor;
+  final Color? borderColor;
+  final Color? glassColor;
 
   @override
   Widget build(BuildContext context) {
@@ -27,10 +34,10 @@ class GlassButton extends StatelessWidget {
         onTap();
       },
       child: LiquidGlassLayer(
-        settings: const LiquidGlassSettings(
+        settings: LiquidGlassSettings(
           thickness: 25,
           blur: 20,
-          glassColor: LiquidGlassTheme.glassDark,
+          glassColor: glassColor ?? LiquidGlassTheme.glassDark,
           lightIntensity: 0.15,
           saturation: 1,
         ),
@@ -46,10 +53,10 @@ class GlassButton extends StatelessWidget {
                 height: height,
                 padding: padding,
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.08),
+                  color: backgroundColor ?? Colors.black.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(25),
                   border: Border.all(
-                    color: Colors.grey.withValues(alpha: 0.2),
+                    color: borderColor ?? Colors.grey.withValues(alpha: 0.2),
                     width: 1,
                   ),
                 ),

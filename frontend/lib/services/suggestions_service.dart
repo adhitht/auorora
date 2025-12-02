@@ -23,11 +23,6 @@ class SuggestionsService {
     if (_suggestions.isEmpty) return [];
 
     if (tags == null || tags.isEmpty) {
-      if (_suggestions.containsKey('human_present')) {
-        return _suggestions['human_present']!;
-      } else if (_suggestions.isNotEmpty) {
-        return _suggestions.values.first;
-      }
       return [];
     }
 
@@ -62,9 +57,7 @@ class SuggestionsService {
     }
     
     if (newSuggestions.isEmpty) {
-       if (_suggestions.containsKey('human_present')) {
-        newSuggestions = _suggestions['human_present']!;
-      }
+       return [];
     }
 
     return newSuggestions;

@@ -7,6 +7,7 @@ import '../theme/liquid_glass_theme.dart';
 import '../services/image_processing_service.dart';
 import '../services/edit_history_manager.dart';
 import '../services/siglip_service.dart'; // Import SigLipService
+import '../services/segmentation_service.dart'; // Import SegmentationService
 import '../models/edit_history.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/editor_bottom_bar.dart';
@@ -42,13 +43,17 @@ class _EditorScreenState extends State<EditorScreen>
 
 
   final ImageProcessingService _imageService = ImageProcessingService();
-  final SigLipService _sigLipService = SigLipService(); // Initialize SigLipService
+  final SigLipService _sigLipService = SigLipService();
+  final SegmentationService _segmentationService = SegmentationService(); // Initialize SegmentationService
   late final EditHistoryManager _historyManager;
 
   @override
   void initState() {
     super.initState();
     _currentPhotoFile = widget.photoFile;
+
+    // Initialize services
+    _initializeServices();
 
     // Initialize history manager
     _historyManager = EditHistoryManager(maxHistorySize: 50);
@@ -69,11 +74,33 @@ class _EditorScreenState extends State<EditorScreen>
     _historyManager.addListener(_onHistoryChanged);
   }
 
+  Future<void> _initializeServices() async {
+    try {
+      await _segmentationService.initialize();
+      await _segmentationService.encodeImage(widget.photoFile);
+    } catch (e) {
+      debugPrint('Error initializing segmentation service: $e');
+    }
+
+    // Pre-initialize SigLip with a delay to avoid stutter when opening chat
+    // This moves the heavy model loading to the background
+    Future.delayed(const Duration(seconds: 3), () async {
+      if (!mounted) return;
+      try {
+        await _sigLipService.loadModel();
+        await _sigLipService.loadTags();
+      } catch (e) {
+        debugPrint('Error pre-initializing SigLip service: $e');
+      }
+    });
+  }
+
   @override
   void dispose() {
     _historyManager.removeListener(_onHistoryChanged);
     _historyManager.dispose();
-    _sigLipService.dispose(); // Dispose SigLipService
+    _sigLipService.dispose();
+    _segmentationService.dispose(); // Dispose SegmentationService
     super.dispose();
   }
 
@@ -188,6 +215,8 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   List<String> _detectedTags = [];
+  String? _lastTaggedPath;
+  final Set<String> _dismissedSuggestions = {};
 
   Future<void> _enterChatMode() async {
     if (_currentPhotoFile == null) return;
@@ -199,6 +228,12 @@ class _EditorScreenState extends State<EditorScreen>
       _isReframeMode = false;
     });
 
+    // If we already have tags for this image, don't re-run immediately
+    // If image changed, we might want to re-run in background
+    if (_lastTaggedPath == _currentPhotoFile!.path && _detectedTags.isNotEmpty) {
+      return;
+    }
+
     try {
       final imageBytes = await _currentPhotoFile!.readAsBytes();
       final embedding = await _sigLipService.embed(imageBytes);
@@ -208,6 +243,11 @@ class _EditorScreenState extends State<EditorScreen>
       if (mounted) {
         setState(() {
           _detectedTags = matches.map((e) => e.key).toList();
+          _lastTaggedPath = _currentPhotoFile!.path;
+          // Only clear dismissed suggestions if it's a completely new image context
+          // For edits (same file path usually, but content changed), we might want to keep them?
+          // Actually, if content changed significantly, maybe suggestions should reset.
+          // For now, let's keep dismissed suggestions to avoid annoyance.
         });
       }
     } catch (e) {
@@ -216,6 +256,12 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
 
+
+  void _onSuggestionSelected(String suggestion) {
+    setState(() {
+      _dismissedSuggestions.add(suggestion);
+    });
+  }
 
   void _handleToolSelection(EditorTool tool) {
     // Check if clicking the same tool - toggle it off
@@ -302,7 +348,7 @@ class _EditorScreenState extends State<EditorScreen>
       _currentPhotoFile = croppedFile;
       _isCropMode = false;
       _isProcessing = false;
-      _detectedTags = [];
+      // _detectedTags = []; // Keep tags
     });
     ScaffoldMessenger.of(
       context,
@@ -332,7 +378,7 @@ class _EditorScreenState extends State<EditorScreen>
       _currentPhotoFile = relitFile;
       _isRelightMode = false;
       _isProcessing = false;
-      _detectedTags = [];
+      // _detectedTags = []; // Keep tags
     });
     ScaffoldMessenger.of(
       context,
@@ -356,7 +402,7 @@ class _EditorScreenState extends State<EditorScreen>
       _currentPhotoFile = reframedFile;
       _isReframeMode = false;
       _isProcessing = false;
-      _detectedTags = [];
+      // _detectedTags = []; // Keep tags
     });
     ScaffoldMessenger.of(
       context,
@@ -516,6 +562,8 @@ class _EditorScreenState extends State<EditorScreen>
                               ? EditorTool.chat
                               : null,
               detectedTags: _detectedTags,
+              dismissedSuggestions: _dismissedSuggestions,
+              onSuggestionSelected: _onSuggestionSelected,
               onUndo: _handleUndo,
               onRedo: _handleRedo,
               onHistory: _showHistoryViewer,
@@ -641,29 +689,36 @@ class _EditorScreenState extends State<EditorScreen>
                 },
               )
             : _isRelightMode
-            ? RelightEditorWidget(
-                key: const ValueKey('relight-mode'),
-                imageFile: _currentPhotoFile!,
-                onCancel: _exitRelightMode,
-                onApply: _onRelightApplied,
-                onControlPanelReady: (builder) {
-                  setState(() {
-                    _relightControlPanelBuilder = builder;
-                  });
-                },
-                onShowMessage: (message, isSuccess) {
-                  if (!mounted) return;
-                  try {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(message)));
-                  } catch (_) {}
-                },
+            ? AnimatedPadding(
+                padding: EdgeInsets.only(bottom: 240.0),
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutCubic,
+                child: RelightEditorWidget(
+                  key: const ValueKey('relight-mode'),
+                  imageFile: _currentPhotoFile!,
+                  segmentationService: _segmentationService, // Pass service
+                  onCancel: _exitRelightMode,
+                  onApply: _onRelightApplied,
+                  onControlPanelReady: (builder) {
+                    setState(() {
+                      _relightControlPanelBuilder = builder;
+                    });
+                  },
+                  onShowMessage: (message, isSuccess) {
+                    if (!mounted) return;
+                    try {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(message)));
+                    } catch (_) {}
+                  },
+                ),
               )
             : _isReframeMode
             ? ReframeEditorWidget(
                 key: const ValueKey('reframe-mode'),
                 imageFile: _currentPhotoFile!,
+                segmentationService: _segmentationService, // Pass service
                 onCancel: _exitReframeMode,
                 onApply: _onReframeApplied,
                 onControlPanelReady: (builder) {
