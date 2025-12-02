@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/liquid_glass_theme.dart';
 import '../services/segmentation_service.dart';
@@ -679,56 +680,124 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         lightIntensity: 0.15,
         saturation: 1,
       ),
-      child: Row(
-        children: [
-          if (_mode == ReframeMode.initial || _mode == ReframeMode.segmenting)
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Left Button: Segmentation / Reset
             GlassButton(
               onTap: () {
                 setState(() {
-                  _mode = _mode == ReframeMode.segmenting
-                      ? ReframeMode.initial
-                      : ReframeMode.segmenting;
+                  _mode = ReframeMode.segmenting;
+                  _poseResult = null;
+                  _cutoutResult = null;
+                  _cleanBackgroundBytes = null;
+                  _feedbackMaskImage = null;
                 });
                 widget.onControlPanelReady?.call(buildReframeOptionsBar);
               },
-              child: Icon(
-                _mode == ReframeMode.segmenting
-                    ? CupertinoIcons.person_crop_circle_fill
-                    : CupertinoIcons.person_crop_circle,
-                color: _mode == ReframeMode.segmenting
-                    ? LiquidGlassTheme.primary
-                    : Colors.white,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              child: SvgPicture.asset(
+                'assets/icons/select_object.svg',
+                width: 20,
+                height: 20,
+                colorFilter: ColorFilter.mode(
+                  _mode == ReframeMode.initial || _mode == ReframeMode.segmenting
+                      ? LiquidGlassTheme.primary
+                      : Colors.white,
+                  BlendMode.srcIn,
+                ),
               ),
             ),
 
-          if (_mode == ReframeMode.segmented ||
-              _mode == ReframeMode.moving ||
-              _mode == ReframeMode.posing) ...[
+            // Center Pill: Move & Pose Toggle
+            if (_mode != ReframeMode.initial && _mode != ReframeMode.segmenting)
+              Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Move Button (Reframing)
+                    _buildPillButton(
+                      iconPath: 'assets/icons/move.svg',
+                      isActive: _mode == ReframeMode.moving,
+                      onTap: _enterMoveMode,
+                    ),
+                    
+                    const SizedBox(width: 4),
+                    
+                    // Pose Button (Pose Detection)
+                    _buildPillButton(
+                      iconPath: 'assets/icons/pose_correction.svg',
+                      isActive: _mode == ReframeMode.posing,
+                      onTap: _enterPoseMode,
+                    ),
+                  ],
+                ),
+              )
+            else
+               // Placeholder to keep layout balanced
+               const SizedBox(width: 48),
+
+
+            // Right Button: Apply
             GlassButton(
-              onTap: _enterMoveMode,
-              child: Icon(
-                CupertinoIcons.move,
-                color: _mode == ReframeMode.moving
-                    ? LiquidGlassTheme.primary
-                    : Colors.white,
-              ),
-            ),
-            const SizedBox(width: 12),
-            GlassButton(
-              onTap: _enterPoseMode,
-              child: Icon(
-                CupertinoIcons.person_crop_circle,
-                color: _mode == ReframeMode.posing
-                    ? LiquidGlassTheme.primary
-                    : Colors.white,
+              onTap: _applyReframe,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              child: SvgPicture.asset(
+                'assets/icons/tick.svg',
+                width: 20,
+                height: 20,
+                colorFilter: const ColorFilter.mode(
+                  Colors.white,
+                  BlendMode.srcIn,
+                ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
 
-          const Spacer(),
-
-          GlassButton(onTap: _applyReframe, child: const Icon(Icons.check)),
-        ],
+  Widget _buildPillButton({
+    required String iconPath,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white.withOpacity(0.1) : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          iconPath,
+          width: 18,
+          height: 18,
+          colorFilter: ColorFilter.mode(
+            isActive ? Colors.white : Colors.white.withOpacity(0.5),
+            BlendMode.srcIn,
+          ),
+        ),
       ),
     );
   }

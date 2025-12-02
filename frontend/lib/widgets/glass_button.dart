@@ -9,6 +9,7 @@ class GlassButton extends StatelessWidget {
   final double? width;
   final double? height;
   final EdgeInsetsGeometry? padding;
+  final double borderRadius;
 
   const GlassButton({
     super.key,
@@ -20,6 +21,7 @@ class GlassButton extends StatelessWidget {
     this.backgroundColor,
     this.borderColor,
     this.glassColor,
+    this.borderRadius = 25,
   });
 
   final Color? backgroundColor;
@@ -45,16 +47,16 @@ class GlassButton extends StatelessWidget {
           stretch: 0.5,
           interactionScale: 1.05,
           child: LiquidGlass(
-            shape: LiquidRoundedSuperellipse(borderRadius: 50),
+            shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(borderRadius),
               child: Container(
                 width: width,
                 height: height,
                 padding: padding,
                 decoration: BoxDecoration(
                   color: backgroundColor ?? Colors.black.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(borderRadius),
                   border: Border.all(
                     color: borderColor ?? Colors.grey.withValues(alpha: 0.2),
                     width: 1,
