@@ -9,9 +9,17 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-# ML Imports
-import tensorflow as tf
-import tensorflow_hub as hub
+# ML Imports - TFLite Runtime
+try:
+    import tflite_runtime.interpreter as tflite
+except ImportError:
+    print("tflite_runtime not found. Please install: pip install tflite-runtime")
+    # Fallback for standard tensorflow if runtime isn't installed but full tf is
+    # try:
+    #     import tensorflow.lite as tflite
+    # except ImportError:
+    #     raise ImportError("Neither tflite_runtime nor tensorflow found.")
+
 from mobile_sam import sam_model_registry, SamPredictor
 from diffusers import StableDiffusionControlNetInpaintPipeline, ControlNetModel, UniPCMultistepScheduler
 
@@ -27,90 +35,115 @@ class GeometryHelper:
         v = np.array(end[:2]) - np.array(start[:2])
         return np.array(end[:2]) + v * factor
 
-class MoveNetHelper:
-    def __init__(self):
-        print("⚡ Loading MoveNet Lightning...")
-        # Load MoveNet SinglePose Lightning from TF Hub
-        self.module = hub.load("https://tfhub.dev/google/movenet/singlepose/lightning/4")
-        self.model = self.module.signatures['serving_default']
-        
-        # Colors for drawing the skeleton
+class MoveNetPoseHelper:
+    """
+    Replaces HolisticHelper. Uses tflite-runtime to run MoveNet 
+    instead of Mediapipe or TensorFlow Hub.
+    """
+    def __init__(self, model_path='movenet_lightning.tflite'):
         self.colors = [[255, 0, 85], [255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0],
                        [170, 255, 0], [85, 255, 0], [0, 255, 0], [0, 255, 85], [0, 255, 170],
                        [0, 255, 255], [0, 170, 255], [0, 85, 255], [0, 0, 255], [255, 0, 170],
                        [170, 0, 255], [255, 0, 255], [85, 0, 255]]
+        
+        # Load TFLite Model
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file '{model_path}' not found. Please place it in the script directory.")
+
+        self.interpreter = tflite.Interpreter(model_path=model_path)
+        self.interpreter.allocate_tensors()
+
+        self.input_details = self.interpreter.get_input_details()
+        self.output_details = self.interpreter.get_output_details()
+        
+        # MoveNet Thunder usually expects 256x256, Lightning 192x192
+        self.input_size = self.input_details[0]['shape'][1] 
 
     def process_image(self, image_pil):
         """
-        Runs inference using MoveNet Lightning.
-        MoveNet requires input to be 192x192 int32.
+        Preprocesses image, runs inference, and returns keypoints + shape.
+        Returns: (keypoints_normalized_coco_format, original_shape)
         """
         image_np = np.array(image_pil)
-        
-        # Resizing logic specific to MoveNet
-        input_image = tf.image.resize_with_pad(np.expand_dims(image_np, axis=0), 192, 192)
-        input_image = tf.cast(input_image, dtype=tf.int32)
+        original_h, original_w, _ = image_np.shape
 
-        # Run inference
-        outputs = self.model(input_image)
-        # Output is [1, 1, 17, 3] -> [y, x, score]
-        keypoints = outputs['output_0'].numpy()[0, 0]
+        # Resize and Pad to square while maintaining aspect ratio
+        input_image = cv2.resize(image_np, (self.input_size, self.input_size))
+        input_image = np.expand_dims(input_image, axis=0)
         
-        return keypoints, image_np.shape
+        # MoveNet expects int32 or float32 depending on version, usually uint8 for quant or float for others
+        # Thunder int8 expects uint8, Float models expect float32. 
+        # Checking input dtype expectation:
+        if self.input_details[0]['dtype'] == np.float32:
+            input_image = (np.float32(input_image) - 127.5) / 127.5
+        
+        # Inference
+        self.interpreter.set_tensor(self.input_details[0]['index'], input_image)
+        self.interpreter.invoke()
+        
+        # Output is [1, 1, 17, 3] -> [17, 3] (y, x, score)
+        keypoints_with_scores = self.interpreter.get_tensor(self.output_details[0]['index'])[0, 0]
+        
+        return keypoints_with_scores, (original_h, original_w, 3)
 
-    def get_coco_keypoints(self, raw_keypoints, shape):
+    def get_coco_keypoints(self, results, shape):
         """
-        Converts MoveNet normalized [y, x, score] to Absolute [x, y, score].
+        Converts MoveNet normalized output (y, x, score) to pixel coordinates (x, y, score).
+        MoveNet output is already COCO topology, so no remapping needed, just scaling.
         """
+        keypoints_norm = results # It's just the array from process_image
         H, W, _ = shape
+        
         kps = np.zeros((17, 3))
         
-        for idx, kp in enumerate(raw_keypoints):
-            ky, kx, score = kp
-            # Convert normalized coordinates to pixel coordinates
-            kps[idx] = [kx * W, ky * H, score]
+        for idx in range(17):
+            y_norm, x_norm, score = keypoints_norm[idx]
+            kps[idx] = [x_norm * W, y_norm * H, score]
             
         return kps
 
     def draw_skeleton(self, keypoints, shape):
         """
-        Draws OpenPose-style skeleton for ControlNet.
-        Input keypoints must be COCO format (17 points).
+        Draws the skeleton using OpenPose-style connections based on COCO keypoints.
         """
         H, W, _ = shape
         canvas = np.zeros((H, W, 3), dtype=np.uint8)
         
-        # OpenPose format mapping
-        # COCO indices: 5=L_Sho, 6=R_Sho, 7=L_Elb, 8=R_Elb, 9=L_Wri, 10=R_Wri, 11=L_Hip, 12=R_Hip
-        l_sho, r_sho = keypoints[5], keypoints[6]
+        # COCO Keypoint Indices:
+        # 0:nose, 1:l_eye, 2:r_eye, 3:l_ear, 4:r_ear, 5:l_sho, 6:r_sho, 
+        # 7:l_elb, 8:r_elb, 9:l_wri, 10:r_wri, 11:l_hip, 12:r_hip, 
+        # 13:l_knee, 14:r_knee, 15:l_ank, 16:r_ank
         
-        # Calculate Neck (average of shoulders)
+        # Create OpenPose specific mapping for drawing if desired, 
+        # or calculate neck position manually as MoveNet doesn't provide it.
+        l_sho, r_sho = keypoints[5], keypoints[6]
         neck = [(l_sho[0] + r_sho[0]) / 2, (l_sho[1] + r_sho[1]) / 2, 1.0]
         
-        # Map COCO 17 to OpenPose 18 format
-        # OP Indices: 0:Nose, 1:Neck, 2:R_Sho, 3:R_Elb, 4:R_Wri, 5:L_Sho, 6:L_Elb, 7:L_Wri
-        # 8:R_Hip, 9:R_Knee, 10:R_Ank, 11:L_Hip, 12:L_Knee, 13:L_Ank, 14:R_Eye, 15:L_Eye, 16:R_Ear, 17:L_Ear
+        # Construct the drawing list including the calculated neck
+        # Note: This list structure attempts to match the visual style of the original code
+        # Original code mapped indices to a specific 'op_kps' list.
+        # COCO 0->0, Neck->1, R_Sho->2(6), R_Elb->3(8), R_Wri->4(10), L_Sho->5(5), L_Elb->6(7), L_Wri->7(9)
+        # R_Hip->8(12), R_Knee->9(14), R_Ank->10(16), L_Hip->11(11), L_Knee->12(13), L_Ank->13(15)
+        # R_Eye->14(2), L_Eye->15(1), R_Ear->16(4), L_Ear->17(3)
         
         op_kps = [
-            keypoints[0], neck, keypoints[6], keypoints[8], keypoints[10], # 0-4
-            keypoints[5], keypoints[7], keypoints[9],                      # 5-7
-            keypoints[12], keypoints[14], keypoints[16],                   # 8-10 (Right Leg)
-            keypoints[11], keypoints[13], keypoints[15],                   # 11-13 (Left Leg)
-            keypoints[2], keypoints[1], keypoints[4], keypoints[3]         # 14-17 (Eyes/Ears)
+            keypoints[0], neck, keypoints[6], keypoints[8], keypoints[10], 
+            keypoints[5], keypoints[7], keypoints[9], keypoints[12], 
+            keypoints[14], keypoints[16], keypoints[11], keypoints[13], 
+            keypoints[15], keypoints[2], keypoints[1], keypoints[4], keypoints[3]
         ]
         
-        # Define connection pairs for OpenPose skeleton
+        # Defined pairs for drawing lines
         pairs = [(1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (1, 8), (8, 9), (9, 10),
                  (1, 11), (11, 12), (12, 13), (1, 0), (0, 14), (14, 16), (0, 15), (15, 17)]
 
-        # Draw Lines
         for i, (s, e) in enumerate(pairs):
-            # Check confidence score (index 2)
+            # MoveNet scores are usually lower than MP, adjusted threshold to 0.2
             if op_kps[s][2] > 0.2 and op_kps[e][2] > 0.2:
-                cv2.line(canvas, (int(op_kps[s][0]), int(op_kps[s][1])), 
-                         (int(op_kps[e][0]), int(op_kps[e][1])), self.colors[i%18], 3, cv2.LINE_AA)
+                pt1 = (int(op_kps[s][0]), int(op_kps[s][1]))
+                pt2 = (int(op_kps[e][0]), int(op_kps[e][1]))
+                cv2.line(canvas, pt1, pt2, self.colors[i%18], 3, cv2.LINE_AA)
         
-        # Draw Points
         for i, kp in enumerate(op_kps):
             if kp[2] > 0.2: 
                 cv2.circle(canvas, (int(kp[0]), int(kp[1])), 4, self.colors[i%18], -1)
@@ -126,7 +159,7 @@ class PoseCorrectionPipeline:
         self._check_weights()
         
         # 2. Load Helpers (Switched to MoveNet)
-        self.pose_helper = MoveNetHelper()
+        self.pose_helper = MoveNetPoseHelper()
         
         # 3. Load MobileSAM
         print("⏳ Loading MobileSAM...")
