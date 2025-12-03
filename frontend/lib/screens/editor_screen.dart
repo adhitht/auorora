@@ -15,6 +15,7 @@ import '../widgets/crop_editor_widget.dart';
 import '../widgets/relight_editor_widget.dart';
 import '../widgets/reframe_editor_widget.dart';
 import '../widgets/history_viewer_dialog.dart';
+import '../widgets/privacy_notice_dialog.dart';
 
 class EditorScreen extends StatefulWidget {
   final File photoFile;
@@ -70,8 +71,28 @@ class _EditorScreenState extends State<EditorScreen>
       ),
     );
 
-    // Listen to history changes
     _historyManager.addListener(_onHistoryChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        _showPrivacyNotice();
+      }
+    });
+  }
+
+  Future<void> _showPrivacyNotice() async {
+    final shouldProceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const PrivacyNoticeDialog(),
+    );
+
+    if (shouldProceed != true) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   Future<void> _initializeServices() async {

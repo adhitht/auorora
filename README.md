@@ -1,17 +1,17 @@
-# Adobe Image Editing Suite
+# Aurora - Editing app for the future
 
 A comprehensive image editing and manipulation application featuring AI-powered tools for pose correction, relighting, inpainting. The project combines a Flutter frontend with a Python gRPC backend for advanced image processing capabilities.
 
 ## Description
 
-Adobe Image Editing Suite is a full-stack application designed to provide image editing capabilities AI models. The application features:
+Aurora Image Editing Suite is a full-stack application designed to provide image editing capabilities AI models. The application features:
 
 - **Pose Correction**: Adjust and modify human poses in images using pose landmarks
 - **Relighting**: Dynamically relight images with customizable light configurations
 - **Inpainting**: Remove unwanted objects and intelligently fill regions
 - **Object Detection & Segmentation**: Identify and segment objects in images
 
-The frontend is built with Flutter, supporting iOS, Android, Windows, macOS, and Linux platforms. The backend uses Python with gRPC for efficient communication and leverages state-of-the-art ML models for image processing.
+The frontend is built with Flutter, we have tested this with android phones (works better with Snapdragon chips). The backend uses Python with gRPC for efficient communication and leverages state-of-the-art ML models for image processing.
 
 ## File Structure
 
@@ -114,96 +114,10 @@ adobe/
   - `path_provider`: File system access
   - `cupertino_icons`: iOS-style icons
 
-## Local Testing
-
-### Prerequisites
-- **Backend**: Python 3.9 or higher, pip
-- **Frontend**: Flutter 3.9.2+, Dart
-- **Platform-specific**: 
-  - iOS: Xcode 14+
-  - Android: Android Studio, SDK 21+
-  - Windows: Visual Studio Build Tools
-  - macOS: Xcode Command Line Tools
-  - Linux: Build essentials
-
-### Backend Setup
-
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-
-2. Create a virtual environment (recommended):
-   ```bash
-   python -m venv venv
-   # On Windows
-   venv\Scripts\activate
-   # On macOS/Linux
-   source venv/bin/activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Regenerate protobuf files (if proto files were modified):
-   ```bash
-   python -m grpc_tools.protoc -I../protos --python_out=. --grpc_python_out=. ../protos/pose.proto
-   python -m grpc_tools.protoc -I../protos --python_out=. --grpc_python_out=. ../protos/relighting.proto
-   ```
-
-5. Start the gRPC server:
-   ```bash
-   python -m backend.main
-   ```
-   The server will start on `localhost:50051`
-
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-
-2. Get Flutter dependencies:
-   ```bash
-   flutter pub get
-   ```
-
-3. Generate protobuf Dart files:
-   ```bash
-   dart run grpc:protoc_plugin
-   protoc --dart_out=grpc:lib/generated -I../protos ../protos/pose.proto
-   protoc --dart_out=grpc:lib/generated -I../protos ../protos/relighting.proto
-   ```
-
-4. Run on your target platform:
-   ```bash
-   # Android
-   flutter run -d <device_id>
-   
-   # iOS
-   flutter run -d <device_id>
-   
-   # Windows
-   flutter run -d windows
-   
-   # macOS
-   flutter run -d macos
-   
-   # Linux
-   flutter run -d linux
-   ```
-
-### Testing Communication
-
-Ensure both backend and frontend are running on the same network. Configure the backend URL in the frontend:
-
-- Update the gRPC channel in `frontend/lib/services/` to point to your backend server
-- Default: `localhost:50051` for local testing
-
 ## User Workflow
+
+<!-- TODO: Add GIFS here later -->
+
 
 ### Mobile/Desktop Application Flow
 
@@ -281,6 +195,8 @@ Ensure both backend and frontend are running on the same network. Configure the 
    - Graceful error handling with user-friendly messages
    - Logging for debugging
 
+![Backend Processing Pipeline](assets/backend-processing-diagram.png)
+
 ## Models Used
 
 ### On-Device Models (Frontend)
@@ -303,6 +219,9 @@ Ensure both backend and frontend are running on the same network. Configure the 
 ### Supporting Models
 - **SigLIP Tags**: Image tagging and classification
 - **Transformers**: Various pretrained models for feature extraction
+
+
+<!-- This is the start of Pipelines Architecture -->
 
 ## Pipelines Architecture
 
@@ -379,6 +298,8 @@ Context-aware image inpainting to remove unwanted objects and intelligently fill
 - Inference time: 2-4 seconds for 512×512 images
 - Larger masks increase computational complexity
 - Quality improves with clear surrounding context
+
+<!-- This is the start of Compute Profile -->
 
 ## Compute Profile and Resource Requirements
 
@@ -472,21 +393,6 @@ Return to Frontend
 | Desktop | 1024×1536 | 2048×3072 |
 | GPU-enabled | 2048×3072 | 4096×6144 |
 
-### Load Balancing and Scaling
-
-#### Single Server Architecture
-```
-gRPC Server (Port 50051)
-├── Thread Pool: 10 workers
-├── Max Concurrent: 2 parallel heavy operations
-└── Queue: Request queue for fairness
-```
-
-#### Multi-Server Scaling (Future)
-- **Load Balancer**: Route requests round-robin
-- **Horizontal Scaling**: Add servers for 10x+ throughput
-- **Model Replication**: Each server loads models independently
-
 ### Memory Management
 
 #### Backend Memory Strategy
@@ -530,39 +436,3 @@ pose_model = PoseCorrectionPipeline()  # ~1 GB
 - **Idle**: 100-200 W
 - **Single request processing**: 300-600 W
 - **Peak load (4+ concurrent)**: 800-1200 W
-
-### Error Handling and Fallbacks
-
-#### Graceful Degradation
-```
-Request Received
-    ↓
-Try High-Quality Model
-    ↓ [Timeout/Error]
-Fallback to Faster Model
-    ↓ [Still Fails]
-Return Best Available Result + Error Message
-```
-
-#### Retry Logic
-- **Max Retries**: 3 attempts with exponential backoff
-- **Backoff Strategy**: 100ms, 500ms, 2000ms
-- **Circuit Breaker**: Disable service if failure rate > 50%
-
-## Contributing
-
-When contributing to this project:
-
-1. Ensure backend changes include updated proto files if APIs change
-2. Regenerate protobuf files for both Python and Dart
-3. Test gRPC communication between frontend and backend
-4. Follow Flutter and Python code style guidelines
-5. Update documentation for significant changes
-
-## License
-
-[Add your license information here]
-
-## Support
-
-For issues, questions, or suggestions, please create an issue in the repository.
