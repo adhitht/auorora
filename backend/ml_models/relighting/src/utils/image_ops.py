@@ -199,12 +199,13 @@ def estimate_light_source_strength(env_torch):
     return shadow_strength
 
 
-def composite_with_shadows(depth_estimator, original_pil, relit_pil, mask, meta, hdri_path, rot_angle, shadow_reach=0.4, debug=False):
+def composite_with_shadows(depth_estimator, upsampler, original_pil, relit_pil, mask, meta, hdri_path, rot_angle, shadow_reach=0.4, debug=False, upscale_factor=2, use_realesrgan=True):
     """
-    Composites the relit object back into the original scene.
+    Composites the relit object back into the original scene with automatic 2x upscaling.
     
     Args:
         depth_estimator: Model for extracting background and object depth.
+        upsampler: Pre-loaded Real-ESRGAN upsampler model (or None for LANCZOS fallback).
         original_pil (Image.Image): Original background image.
         relit_pil (Image.Image): Relit object image at target resolution.
         mask (np.ndarray): Binary segmentation mask of the object.
@@ -214,6 +215,8 @@ def composite_with_shadows(depth_estimator, original_pil, relit_pil, mask, meta,
         rot_angle (float): Rotation angle applied to the HDRI in degrees.
         shadow_reach (float, optional): Maximum shadow distance as fraction of image dimension. Default: 0.4.
         debug (bool, optional): If True, displays visualization of shadow layers. Default: False.
+        upscale_factor (int): Upscaling factor (default: 2, automatically applied)
+        use_realesrgan (bool): Use Real-ESRGAN for upscaling (default: True)
     
     Returns:
         Image.Image: Final composited image with relit object and shadows on original background.
@@ -225,9 +228,47 @@ def composite_with_shadows(depth_estimator, original_pil, relit_pil, mask, meta,
     max_dim = meta["max_dim"]
 
     original_np = np.array(original_pil)
+    
+    # Upscale the relit image if requested
+    if upscale_factor > 1:
+        if use_realesrgan and upsampler is not None:
+            try:
+                print(f"🚀 Upscaling {upscale_factor}x with Real-ESRGAN...")
+                relit_np = np.array(relit_pil)
+                upscaled_np, _ = upsampler.enhance(relit_np, outscale=upscale_factor)
+                relit_pil = Image.fromarray(upscaled_np)
+                print(f"✓ Upscaled to {relit_pil.size}")
+            except Exception as e:
+                print(f"⚠️ Real-ESRGAN failed: {e}, using LANCZOS")
+                import traceback
+                traceback.print_exc()
+                new_size = (relit_pil.width * upscale_factor, relit_pil.height * upscale_factor)
+                relit_pil = relit_pil.resize(new_size, Image.Resampling.LANCZOS)
+        else:
+            new_size = (relit_pil.width * upscale_factor, relit_pil.height * upscale_factor)
+            relit_pil = relit_pil.resize(new_size, Image.Resampling.LANCZOS)
+            if upsampler is None:
+                print(f"ℹ️ Using LANCZOS for {upscale_factor}x upscaling")
+    
     relit_np = np.array(relit_pil).astype(np.float32) / 255.0
-    relit_square = cv2.resize(relit_np, (max_dim, max_dim), interpolation=cv2.INTER_LANCZOS4)
-    relit_crop = relit_square[top:top + h_orig, left:left + w_orig]
+    
+    # Resize to match original dimensions (after upscaling)
+    target_max_dim = max_dim * upscale_factor
+    relit_square = cv2.resize(relit_np, (target_max_dim, target_max_dim), interpolation=cv2.INTER_LANCZOS4)
+    
+    # Crop to original aspect ratio
+    target_h_orig = h_orig * upscale_factor
+    target_w_orig = w_orig * upscale_factor
+    target_top = top * upscale_factor
+    target_left = left * upscale_factor
+    relit_crop = relit_square[target_top:target_top + target_h_orig, target_left:target_left + target_w_orig]
+    
+    # Upscale mask and original image if needed
+    if upscale_factor > 1:
+        original_pil = original_pil.resize((w_orig * upscale_factor, h_orig * upscale_factor), Image.Resampling.LANCZOS)
+        original_np = np.array(original_pil)
+        h_orig *= upscale_factor
+        w_orig *= upscale_factor
 
     mask_full = mask.astype(np.uint8)
     if mask_full.shape != (h_orig, w_orig):

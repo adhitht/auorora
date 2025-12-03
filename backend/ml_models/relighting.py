@@ -15,7 +15,7 @@ class RelightingModel:
     def __init__(self):
         """Initialize the relighting pipeline."""
         print("Initializing Relighting Model...")
-        self.pipeline = init_models()
+        self.pipeline, self.upsampler = init_models()
         if self.pipeline is None:
             raise RuntimeError("Failed to initialize relighting pipeline")
         
@@ -51,6 +51,7 @@ class RelightingModel:
         relit_image, mask, meta = relight_object(
             pipe=self.pipeline,
             depth_estimator=self.depth_estimator,
+            upsampler=self.upsampler,
             image_path=image,
             mask=mask,
             hdri_path=hdri_path,

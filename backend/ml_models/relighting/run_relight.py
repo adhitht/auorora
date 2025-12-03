@@ -32,6 +32,11 @@ def main():
     # Environment map generation options
     p.add_argument("--generate-env-map", action="store_true", help="Generate custom environment map from background analysis")
     p.add_argument("--lights-json", help="Path to JSON file with custom light configurations")
+    
+    # Upscaling options (enabled by default)
+    p.add_argument("--upscale", default=2, type=int, choices=[1, 2, 4], help="Upscaling factor for relit object (default: 2x, options: 1/2/4)")
+    p.add_argument("--no-realesrgan", action="store_true", help="Disable Real-ESRGAN upscaling (use LANCZOS instead)")
+    
     args = p.parse_args()
     
     # Validate arguments
@@ -70,7 +75,9 @@ def main():
         shadow_reach=args.shadow_reach,
         debug=args.debug,
         lights_config=lights_config,
-        generate_env_map=args.generate_env_map
+        generate_env_map=args.generate_env_map,
+        upscale_factor=args.upscale,
+        use_realesrgan=not args.no_realesrgan
     )
 
     out = Path("relit_output.png")

@@ -7,12 +7,14 @@ from typing import Optional, Dict, List
 from config import cfg
 from src.models.neural_gaffer import build_pipeline
 from src.utils.image_ops import read_hdri_map, composite_with_shadows, generate_env_map_from_image
+import upscaler
 
 
-def relight_object(pipe, depth_estimator, image_path, mask, hdri_path,
+def relight_object(pipe, depth_estimator, upsampler, image_path, mask, hdri_path,
                   rot_angle=0.0, guidance_scale=3.0, seed=None, num_inference_steps=50,
                   shadow_reach=0.4, debug=False,
-                  lights_config: Optional[List[Dict]] = None):
+                  lights_config: Optional[List[Dict]] = None,
+                  upscale_factor=2, use_realesrgan=True):
     """Wrapper to produce a relit image given a mask and a HDRI.
 
     Saves `relit_output.png` and returns (PIL.Image, mask, meta).
@@ -23,9 +25,10 @@ def relight_object(pipe, depth_estimator, image_path, mask, hdri_path,
         image_path : Image, can be path or Image.image instance
         mask: Binary mask for the object
         hdri_path: Path to HDRI environment map
-        use_shadows: If True, composite shadows onto the original image
         shadow_reach: Controls how far shadows extend (0.0-1.0)
         lights_config: Optional list of light configurations for custom env map generation
+        upscale_factor: Upscaling factor (default: 2, for CLI use only)
+        use_realesrgan: Use Real-ESRGAN (default: True, for CLI use only)
     """
     #loading image
     if isinstance(image_path, str):
@@ -70,9 +73,10 @@ def relight_object(pipe, depth_estimator, image_path, mask, hdri_path,
         print("Compositing with Shadows")
         print("=" * 60)
         
-    #call final composition function
+    #call final composition function with upscaling
     final_result = composite_with_shadows(
         depth_estimator=depth_estimator,
+        upsampler=upsampler,
         original_pil=original_pil,
         relit_pil=result,
         mask=mask,
@@ -80,7 +84,9 @@ def relight_object(pipe, depth_estimator, image_path, mask, hdri_path,
         hdri_path=hdri_path,
         rot_angle=rot_angle,
         shadow_reach=shadow_reach,
-        debug=debug
+        debug=debug,
+        upscale_factor=upscale_factor,
+        use_realesrgan=use_realesrgan
     )
     
     final_result.save("relit_output.png")
@@ -89,4 +95,11 @@ def relight_object(pipe, depth_estimator, image_path, mask, hdri_path,
 
 
 def init_models():
-    return build_pipeline()
+    pipe = build_pipeline()
+    print("Initializing Real-ESRGAN upsampler...")
+    upsampler_model = upscaler.get_upsampler(model_name='RealESRGAN_x4plus', scale=4, tile=0, half=True)
+    if upsampler_model is not None:
+        print("✓ Real-ESRGAN upsampler loaded successfully")
+    else:
+        print("⚠️ Real-ESRGAN upsampler could not be loaded, will fallback to LANCZOS")
+    return pipe, upsampler_model
