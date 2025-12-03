@@ -44,7 +44,7 @@ class GlassButton extends StatelessWidget {
           saturation: 1,
         ),
         child: LiquidStretch(
-          stretch: 0.5,
+          stretch: 1,
           interactionScale: 1.05,
           child: LiquidGlass(
             shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
