@@ -2,7 +2,7 @@
 set -e
 
 PROTO_DIR="protos"
-PYTHON_OUT_DIR="app"
+PYTHON_OUT_DIR="backend"
 DART_OUT_DIR="frontend/lib/generated" 
 
 echo "Generating gRPC Python files..."

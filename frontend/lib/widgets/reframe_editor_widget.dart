@@ -14,6 +14,7 @@ import 'package:image/image.dart' as img;
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/liquid_glass_theme.dart';
+import 'liquid_slider.dart';
 import '../services/segmentation_service.dart';
 import '../services/pose_detection_service.dart';
 import '../services/pose_changing_service.dart';
@@ -64,7 +65,8 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
   final PoseDetectionService _poseService = PoseDetectionService();
   final InpaintingService _inpaintingService = InpaintingService();
-  final RainnetHarmonizationService _harmonizationService = RainnetHarmonizationService();
+  final RainnetHarmonizationService _harmonizationService =
+      RainnetHarmonizationService();
   final PoseChangingService _poseChangingService = PoseChangingService();
 
   bool _isPoseServiceInitialized = false;
@@ -74,6 +76,11 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
   ui.Image? _feedbackMaskImage;
   Key _feedbackKey = UniqueKey();
+
+  // Pose Settings
+  double _poseStrength = 0.6;
+  double _poseConditioning = 1.0;
+  double _poseSteps = 30.0; // Using double for slider compatibility
 
   @override
   void initState() {
@@ -332,7 +339,11 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
     }
   }
 
-  Uint8List _serializePoseData(PoseDetectionResult result, int width, int height) {
+  Uint8List _serializePoseData(
+    PoseDetectionResult result,
+    int width,
+    int height,
+  ) {
     const types = [
       PoseLandmarkType.rightWrist,
       PoseLandmarkType.rightElbow,
@@ -382,6 +393,9 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         final resultBytes = await _poseChangingService.changePose(
           imageBytes,
           skeletonBytes,
+          numSteps: _poseSteps.round(),
+          controlnetConditioning: _poseConditioning,
+          strength: _poseStrength,
         );
 
         if (resultBytes != null) {
@@ -428,10 +442,13 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
             // ---- HARMONIZATION ----
             // Create a mask for the cutout at the new position
-            final fullMask = img.Image(width: image.width, height: image.height);
+            final fullMask = img.Image(
+              width: image.width,
+              height: image.height,
+            );
             // Fill with black (0)
             img.fill(fullMask, color: img.ColorRgb8(0, 0, 0));
-            
+
             // Draw the cutout shape (white) onto the mask
             // We can use the alpha channel of cutoutImage to determine the mask
             for (int y = 0; y < cutoutImage.height; y++) {
@@ -440,15 +457,21 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                 if (pixel.a > 0) {
                   final dx = targetX + x;
                   final dy = targetY + y;
-                  if (dx >= 0 && dx < fullMask.width && dy >= 0 && dy < fullMask.height) {
+                  if (dx >= 0 &&
+                      dx < fullMask.width &&
+                      dy >= 0 &&
+                      dy < fullMask.height) {
                     fullMask.setPixelRgb(dx, dy, 255, 255, 255);
                   }
                 }
               }
             }
 
-            final harmonizedBytes = await _harmonizationService.harmonize(image, fullMask);
-            
+            final harmonizedBytes = await _harmonizationService.harmonize(
+              image,
+              fullMask,
+            );
+
             if (harmonizedBytes != null) {
               final harmonizedImg = img.decodeImage(harmonizedBytes);
               if (harmonizedImg != null) {
@@ -457,7 +480,8 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                 for (int y = 0; y < image.height; y++) {
                   for (int x = 0; x < image.width; x++) {
                     final m = fullMask.getPixel(x, y).r;
-                    if (m > 128) { // If mask is white (object)
+                    if (m > 128) {
+                      // If mask is white (object)
                       final hPx = harmonizedImg.getPixel(x, y);
                       image.setPixel(x, y, hPx);
                     }
@@ -682,95 +706,172 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Left Button: Segmentation / Reset
-            GlassButton(
-              onTap: () {
-                setState(() {
-                  _mode = ReframeMode.segmenting;
-                  _poseResult = null;
-                  _cutoutResult = null;
-                  _cleanBackgroundBytes = null;
-                  _feedbackMaskImage = null;
-                });
+            if (_mode == ReframeMode.posing) ...[
+              _buildSliderRow("Steps", _poseSteps, 1, 50, (v) {
+                setState(() => _poseSteps = v);
                 widget.onControlPanelReady?.call(buildReframeOptionsBar);
-              },
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              child: SvgPicture.asset(
-                'assets/icons/select_object.svg',
-                width: 20,
-                height: 20,
-                colorFilter: ColorFilter.mode(
-                  _mode == ReframeMode.initial || _mode == ReframeMode.segmenting
-                      ? LiquidGlassTheme.primary
-                      : Colors.white,
-                  BlendMode.srcIn,
-                ),
-              ),
-            ),
-
-            // Center Pill: Move & Pose Toggle
-            if (_mode != ReframeMode.initial && _mode != ReframeMode.segmenting)
-              Container(
-                height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 0.5,
+              }, isInt: true),
+              const SizedBox(height: 8),
+              _buildSliderRow("Control", _poseConditioning, 0, 2, (v) {
+                setState(() => _poseConditioning = v);
+                widget.onControlPanelReady?.call(buildReframeOptionsBar);
+              }),
+              const SizedBox(height: 8),
+              _buildSliderRow("Strength", _poseStrength, 0, 1, (v) {
+                setState(() => _poseStrength = v);
+                widget.onControlPanelReady?.call(buildReframeOptionsBar);
+              }),
+              const SizedBox(height: 16),
+              Container(height: 1, color: Colors.white.withOpacity(0.1)),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Left Button: Segmentation / Reset
+                GlassButton(
+                  onTap: () {
+                    setState(() {
+                      _mode = ReframeMode.segmenting;
+                      _poseResult = null;
+                      _cutoutResult = null;
+                      _cleanBackgroundBytes = null;
+                      _feedbackMaskImage = null;
+                    });
+                    widget.onControlPanelReady?.call(buildReframeOptionsBar);
+                  },
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  child: SvgPicture.asset(
+                    'assets/icons/select_object.svg',
+                    width: 20,
+                    height: 20,
+                    colorFilter: ColorFilter.mode(
+                      _mode == ReframeMode.initial ||
+                              _mode == ReframeMode.segmenting
+                          ? LiquidGlassTheme.primary
+                          : Colors.white,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Move Button (Reframing)
-                    _buildPillButton(
-                      iconPath: 'assets/icons/move.svg',
-                      isActive: _mode == ReframeMode.moving,
-                      onTap: _enterMoveMode,
-                    ),
-                    
-                    const SizedBox(width: 4),
-                    
-                    // Pose Button (Pose Detection)
-                    _buildPillButton(
-                      iconPath: 'assets/icons/pose_correction.svg',
-                      isActive: _mode == ReframeMode.posing,
-                      onTap: _enterPoseMode,
-                    ),
-                  ],
-                ),
-              )
-            else
-               // Placeholder to keep layout balanced
-               const SizedBox(width: 48),
 
+                // Center Pill: Move & Pose Toggle
+                if (_mode != ReframeMode.initial &&
+                    _mode != ReframeMode.segmenting)
+                  Container(
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Move Button (Reframing)
+                        _buildPillButton(
+                          iconPath: 'assets/icons/move.svg',
+                          isActive: _mode == ReframeMode.moving,
+                          onTap: _enterMoveMode,
+                        ),
 
-            // Right Button: Apply
-            GlassButton(
-              onTap: _applyReframe,
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              child: SvgPicture.asset(
-                'assets/icons/tick.svg',
-                width: 20,
-                height: 20,
-                colorFilter: const ColorFilter.mode(
-                  Colors.white,
-                  BlendMode.srcIn,
+                        const SizedBox(width: 4),
+
+                        // Pose Button (Pose Detection)
+                        _buildPillButton(
+                          iconPath: 'assets/icons/pose_correction.svg',
+                          isActive: _mode == ReframeMode.posing,
+                          onTap: _enterPoseMode,
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  // Placeholder to keep layout balanced
+                  const SizedBox(width: 48),
+
+                // Right Button: Apply
+                GlassButton(
+                  onTap: _applyReframe,
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  child: SvgPicture.asset(
+                    'assets/icons/tick.svg',
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      Colors.white,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSliderRow(
+    String label,
+    double value,
+    double min,
+    double max,
+    ValueChanged<double> onChanged, {
+    bool isInt = false,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 60,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: SizedBox(
+            height: 20, // Compact height
+            child: LiquidSlider(
+              value: value,
+              min: min,
+              max: max,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 30,
+          child: Text(
+            isInt ? value.round().toString() : value.toStringAsFixed(1),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ],
     );
   }
 

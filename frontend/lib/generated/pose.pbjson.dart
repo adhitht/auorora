@@ -27,13 +27,24 @@ const PoseRequest$json = {
       '5': 12,
       '10': 'newSkeletonData'
     },
+    {'1': 'num_steps', '3': 3, '4': 1, '5': 5, '10': 'numSteps'},
+    {
+      '1': 'controlnet_conditioning',
+      '3': 4,
+      '4': 1,
+      '5': 2,
+      '10': 'controlnetConditioning'
+    },
+    {'1': 'strength', '3': 5, '4': 1, '5': 2, '10': 'strength'},
   ],
 };
 
 /// Descriptor for `PoseRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List poseRequestDescriptor = $convert.base64Decode(
     'CgtQb3NlUmVxdWVzdBIdCgppbWFnZV9kYXRhGAEgASgMUglpbWFnZURhdGESKgoRbmV3X3NrZW'
-    'xldG9uX2RhdGEYAiABKAxSD25ld1NrZWxldG9uRGF0YQ==');
+    'xldG9uX2RhdGEYAiABKAxSD25ld1NrZWxldG9uRGF0YRIbCgludW1fc3RlcHMYAyABKAVSCG51'
+    'bVN0ZXBzEjcKF2NvbnRyb2xuZXRfY29uZGl0aW9uaW5nGAQgASgCUhZjb250cm9sbmV0Q29uZG'
+    'l0aW9uaW5nEhoKCHN0cmVuZ3RoGAUgASgCUghzdHJlbmd0aA==');
 
 @$core.Deprecated('Use poseResponseDescriptor instead')
 const PoseResponse$json = {
