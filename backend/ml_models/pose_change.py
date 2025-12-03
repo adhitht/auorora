@@ -275,7 +275,7 @@ class PoseCorrectionPipeline:
         
         return x_new, y_new
 
-    def process_request(self, image_input, offset_config):
+    def process_request(self, image_input, offset_config, number_of_steps = 30, strength = 0.85, controlnet_conditioning = 1.5):
         """
         Main entry point for backend.
         
@@ -520,9 +520,9 @@ class PoseCorrectionPipeline:
             image=Image.fromarray(input_ai_composition),
             mask_image=Image.fromarray(final_inpaint_mask),
             control_image=control_map_img,
-            num_inference_steps=30,
-            strength=0.87,
-            controlnet_conditioning_scale=1.5
+            num_inference_steps=number_of_steps,
+            strength=strength,
+            controlnet_conditioning_scale=controlnet_conditioning
         ).images[0]
 
         # Composite Result
