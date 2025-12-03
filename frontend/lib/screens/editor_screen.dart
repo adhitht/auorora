@@ -16,6 +16,8 @@ import '../widgets/relight_editor_widget.dart';
 import '../widgets/reframe_editor_widget.dart';
 import '../widgets/history_viewer_dialog.dart';
 import '../widgets/privacy_notice_dialog.dart';
+import '../widgets/notification_bar.dart'; // Import NotificationBar
+import '../services/notification_service.dart'; // Import NotificationService
 
 class EditorScreen extends StatefulWidget {
   final File photoFile;
@@ -45,7 +47,8 @@ class _EditorScreenState extends State<EditorScreen>
 
   final ImageProcessingService _imageService = ImageProcessingService();
   final SigLipService _sigLipService = SigLipService();
-  final SegmentationService _segmentationService = SegmentationService(); // Initialize SegmentationService
+  final SegmentationService _segmentationService = SegmentationService();
+  final NotificationService _notificationService = NotificationService(); // Initialize NotificationService
   late final EditHistoryManager _historyManager;
 
   @override
@@ -121,7 +124,8 @@ class _EditorScreenState extends State<EditorScreen>
     _historyManager.removeListener(_onHistoryChanged);
     _historyManager.dispose();
     _sigLipService.dispose();
-    _segmentationService.dispose(); // Dispose SegmentationService
+    _segmentationService.dispose();
+    _notificationService.dispose(); // Dispose NotificationService
     super.dispose();
   }
 
@@ -371,9 +375,10 @@ class _EditorScreenState extends State<EditorScreen>
       _isProcessing = false;
       // _detectedTags = []; // Keep tags
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Crop applied')));
+    _notificationService.show(
+      'Crop applied',
+      type: NotificationType.success,
+    );
   }
 
   void _onRelightApplied(File relitFile, Map<String, dynamic> adjustments) {
@@ -496,16 +501,18 @@ class _EditorScreenState extends State<EditorScreen>
             children: [
               // Top app bar (keep existing API)
               EditorTopBar(
-            onBackTap: _navigateBack,
-            onSaveTap: _savePhoto,
-            onShareTap: _handleShare,
-            isSaving: _isProcessing,
-            onUndo: _handleUndo,
-            onRedo: _handleRedo,
-            onHistory: _showHistoryViewer,
-            canUndo: _historyManager.canUndo,
-            canRedo: _historyManager.canRedo,
-          ),
+                onBackTap: _navigateBack,
+                onSaveTap: _savePhoto,
+                onShareTap: _handleShare,
+                isSaving: _isProcessing,
+                onUndo: _handleUndo,
+                onRedo: _handleRedo,
+                onHistory: _showHistoryViewer,
+                canUndo: _historyManager.canUndo,
+                canRedo: _historyManager.canRedo,
+              ),
+
+
 
               Expanded(child: _buildPhotoArea()),
 
@@ -613,6 +620,18 @@ class _EditorScreenState extends State<EditorScreen>
                 ),
               ),
             ),
+          // Notification Bar Overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 66.0),
+                child: NotificationBar(service: _notificationService),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -704,9 +723,12 @@ class _EditorScreenState extends State<EditorScreen>
                   });
                 },
                 onShowMessage: (message, isSuccess) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(message)));
+                  _notificationService.show(
+                    message,
+                    type: isSuccess
+                        ? NotificationType.success
+                        : NotificationType.error,
+                  );
                 },
               )
             : _isRelightMode
