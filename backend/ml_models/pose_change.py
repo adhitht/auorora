@@ -9,17 +9,19 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-# ML Imports - TFLite Runtime
+# ML Imports - TFLite
+# Priority given to full TensorFlow if available, then tflite-runtime
 try:
-    import tflite_runtime.interpreter as tflite
+    import tensorflow.lite as tflite
 except ImportError:
-    print("tflite_runtime not found. Please install: pip install tflite-runtime")
-    # Fallback for standard tensorflow if runtime isn't installed but full tf is
-    # try:
-    #     import tensorflow.lite as tflite
-    # except ImportError:
-    #     raise ImportError("Neither tflite_runtime nor tensorflow found.")
+    try:
+        import tflite_runtime.interpreter as tflite
+    except ImportError:
+        print("Error: Neither 'tensorflow' nor 'tflite-runtime' found.")
+        print("Please install one: `pip install tensorflow` OR `pip install tflite-runtime`")
+        raise
 
+# ML Imports - PyTorch/HuggingFace (Kept as requested)
 from mobile_sam import sam_model_registry, SamPredictor
 from diffusers import StableDiffusionControlNetInpaintPipeline, ControlNetModel, UniPCMultistepScheduler
 
@@ -149,7 +151,7 @@ class MoveNetPoseHelper:
                 cv2.circle(canvas, (int(kp[0]), int(kp[1])), 4, self.colors[i%18], -1)
                 
         return canvas
-
+    
 class PoseCorrectionPipeline:
     def __init__(self, device='cuda'):
         self.device = device if torch.cuda.is_available() else 'cpu'
