@@ -9,6 +9,10 @@ service PoseChangingService {
 message PoseRequest {
     bytes image_data = 1;
     bytes new_skeleton_data = 2;
+
+    int32 num_steps = 3;
+    float controlnet_conditioning = 4;
+    float strength = 5;
 }
 
 message PoseResponse {
