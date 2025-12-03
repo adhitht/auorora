@@ -10,9 +10,10 @@ from PIL import Image
 from io import BytesIO
 
 # ML Imports
+import tensorflow as tf
+import tensorflow_hub as hub
 from mobile_sam import sam_model_registry, SamPredictor
 from diffusers import StableDiffusionControlNetInpaintPipeline, ControlNetModel, UniPCMultistepScheduler
-import mediapipe as mp
 
 class GeometryHelper:
     @staticmethod
@@ -26,56 +27,94 @@ class GeometryHelper:
         v = np.array(end[:2]) - np.array(start[:2])
         return np.array(end[:2]) + v * factor
 
-class HolisticHelper:
+class MoveNetHelper:
     def __init__(self):
-        self.mp_holistic = mp.solutions.holistic
-        self.holistic = self.mp_holistic.Holistic(
-            static_image_mode=True, model_complexity=2, enable_segmentation=False
-        )
+        print("⚡ Loading MoveNet Lightning...")
+        # Load MoveNet SinglePose Lightning from TF Hub
+        self.module = hub.load("https://tfhub.dev/google/movenet/singlepose/lightning/4")
+        self.model = self.module.signatures['serving_default']
+        
+        # Colors for drawing the skeleton
         self.colors = [[255, 0, 85], [255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0],
                        [170, 255, 0], [85, 255, 0], [0, 255, 0], [0, 255, 85], [0, 255, 170],
                        [0, 255, 255], [0, 170, 255], [0, 85, 255], [0, 0, 255], [255, 0, 170],
                        [170, 0, 255], [255, 0, 255], [85, 0, 255]]
 
     def process_image(self, image_pil):
+        """
+        Runs inference using MoveNet Lightning.
+        MoveNet requires input to be 192x192 int32.
+        """
         image_np = np.array(image_pil)
-        return self.holistic.process(image_np), image_np.shape
+        
+        # Resizing logic specific to MoveNet
+        input_image = tf.image.resize_with_pad(np.expand_dims(image_np, axis=0), 192, 192)
+        input_image = tf.cast(input_image, dtype=tf.int32)
 
-    def get_coco_keypoints(self, results, shape):
+        # Run inference
+        outputs = self.model(input_image)
+        # Output is [1, 1, 17, 3] -> [y, x, score]
+        keypoints = outputs['output_0'].numpy()[0, 0]
+        
+        return keypoints, image_np.shape
+
+    def get_coco_keypoints(self, raw_keypoints, shape):
+        """
+        Converts MoveNet normalized [y, x, score] to Absolute [x, y, score].
+        """
         H, W, _ = shape
         kps = np.zeros((17, 3))
-        if not results.pose_landmarks: return kps
-        lm = results.pose_landmarks.landmark
-        def map_pt(mp_idx, coco_idx):
-            kps[coco_idx] = [lm[mp_idx].x * W, lm[mp_idx].y * H, lm[mp_idx].visibility]
         
-        # Mapping MP -> COCO
-        map_pt(0, 0); map_pt(2, 1); map_pt(5, 2); map_pt(7, 3); map_pt(8, 4)
-        map_pt(11, 5); map_pt(12, 6); map_pt(13, 7); map_pt(14, 8); map_pt(15, 9); map_pt(16, 10)
-        map_pt(23, 11); map_pt(24, 12); map_pt(25, 13); map_pt(26, 14); map_pt(27, 15); map_pt(28, 16)
+        for idx, kp in enumerate(raw_keypoints):
+            ky, kx, score = kp
+            # Convert normalized coordinates to pixel coordinates
+            kps[idx] = [kx * W, ky * H, score]
+            
         return kps
 
     def draw_skeleton(self, keypoints, shape):
+        """
+        Draws OpenPose-style skeleton for ControlNet.
+        Input keypoints must be COCO format (17 points).
+        """
         H, W, _ = shape
         canvas = np.zeros((H, W, 3), dtype=np.uint8)
         
         # OpenPose format mapping
+        # COCO indices: 5=L_Sho, 6=R_Sho, 7=L_Elb, 8=R_Elb, 9=L_Wri, 10=R_Wri, 11=L_Hip, 12=R_Hip
         l_sho, r_sho = keypoints[5], keypoints[6]
+        
+        # Calculate Neck (average of shoulders)
         neck = [(l_sho[0] + r_sho[0]) / 2, (l_sho[1] + r_sho[1]) / 2, 1.0]
         
-        op_kps = [keypoints[0], neck, keypoints[6], keypoints[8], keypoints[10], keypoints[5], keypoints[7], keypoints[9],
-                  keypoints[12], keypoints[14], keypoints[16], keypoints[11], keypoints[13], keypoints[15],
-                  keypoints[2], keypoints[1], keypoints[4], keypoints[3]]
+        # Map COCO 17 to OpenPose 18 format
+        # OP Indices: 0:Nose, 1:Neck, 2:R_Sho, 3:R_Elb, 4:R_Wri, 5:L_Sho, 6:L_Elb, 7:L_Wri
+        # 8:R_Hip, 9:R_Knee, 10:R_Ank, 11:L_Hip, 12:L_Knee, 13:L_Ank, 14:R_Eye, 15:L_Eye, 16:R_Ear, 17:L_Ear
         
+        op_kps = [
+            keypoints[0], neck, keypoints[6], keypoints[8], keypoints[10], # 0-4
+            keypoints[5], keypoints[7], keypoints[9],                      # 5-7
+            keypoints[12], keypoints[14], keypoints[16],                   # 8-10 (Right Leg)
+            keypoints[11], keypoints[13], keypoints[15],                   # 11-13 (Left Leg)
+            keypoints[2], keypoints[1], keypoints[4], keypoints[3]         # 14-17 (Eyes/Ears)
+        ]
+        
+        # Define connection pairs for OpenPose skeleton
         pairs = [(1, 2), (1, 5), (2, 3), (3, 4), (5, 6), (6, 7), (1, 8), (8, 9), (9, 10),
                  (1, 11), (11, 12), (12, 13), (1, 0), (0, 14), (14, 16), (0, 15), (15, 17)]
 
+        # Draw Lines
         for i, (s, e) in enumerate(pairs):
-            if op_kps[s][2] > 0.3 and op_kps[e][2] > 0.3:
-                cv2.line(canvas, (int(op_kps[s][0]), int(op_kps[s][1])), (int(op_kps[e][0]), int(op_kps[e][1])), self.colors[i%18], 3, cv2.LINE_AA)
+            # Check confidence score (index 2)
+            if op_kps[s][2] > 0.2 and op_kps[e][2] > 0.2:
+                cv2.line(canvas, (int(op_kps[s][0]), int(op_kps[s][1])), 
+                         (int(op_kps[e][0]), int(op_kps[e][1])), self.colors[i%18], 3, cv2.LINE_AA)
         
+        # Draw Points
         for i, kp in enumerate(op_kps):
-            if kp[2] > 0.3: cv2.circle(canvas, (int(kp[0]), int(kp[1])), 4, self.colors[i%18], -1)
+            if kp[2] > 0.2: 
+                cv2.circle(canvas, (int(kp[0]), int(kp[1])), 4, self.colors[i%18], -1)
+                
         return canvas
 
 class PoseCorrectionPipeline:
@@ -86,8 +125,8 @@ class PoseCorrectionPipeline:
         # 1. Ensure MobileSAM Weights exist
         self._check_weights()
         
-        # 2. Load Helpers
-        self.mp_helper = HolisticHelper()
+        # 2. Load Helpers (Switched to MoveNet)
+        self.pose_helper = MoveNetHelper()
         
         # 3. Load MobileSAM
         print("⏳ Loading MobileSAM...")
@@ -146,27 +185,16 @@ class PoseCorrectionPipeline:
         return new_img.resize((target_size, target_size))
     
     def _restore_original_dimensions(self, processed_512, orig_w, orig_h):
-        """
-        Reverse the padding & resizing applied by _make_square().
-
-        processed_512: PIL.Image of size 512x512
-        orig_w, orig_h: original width & height before padding/resizing
-        """
-
         # 1. compute original square size
         max_dim = max(orig_w, orig_h)
-
         # 2. scale factor to go from square → 512
         scale_factor = 512 / max_dim
-
         # 3. compute padding in original square
         pad_x = (max_dim - orig_w) // 2
         pad_y = (max_dim - orig_h) // 2
-
         # 4. scale padding
         scaled_pad_x = int(pad_x * scale_factor)
         scaled_pad_y = int(pad_y * scale_factor)
-
         # 5. compute crop region in processed image
         crop_left   = scaled_pad_x
         crop_top    = scaled_pad_y
@@ -174,10 +202,8 @@ class PoseCorrectionPipeline:
         crop_bottom = scaled_pad_y + int(orig_h * scale_factor)
 
         cropped = processed_512.crop((crop_left, crop_top, crop_right, crop_bottom))
-
         # 6. upscale back to original dimensions
         restored = cropped.resize((orig_w, orig_h), Image.LANCZOS)
-
         return restored
 
     def _draw_synthetic_hand(self, canvas, elbow_pt, wrist_pt, scale_factor=1.0):
@@ -250,50 +276,23 @@ class PoseCorrectionPipeline:
         return cv2.warpAffine(rgba, M, (img.shape[1], img.shape[0]), flags=cv2.INTER_LINEAR)
     
     def map_coords_to_model_space(self, x, y, orig_w, orig_h, target_size=512):
-        """
-        Maps a point (x, y) from original image space to the 512x512 
-        centered-square space used by the model.
-        """
-        # 1. Determine the square dimension (Logic from _make_square)
+        # 1. Determine the square dimension
         max_dim = max(orig_w, orig_h)
-        
         # 2. Calculate the Padding (Offset)
-        # The image is pasted at these offsets
         pad_x = (max_dim - orig_w) // 2
         pad_y = (max_dim - orig_h) // 2
-        
         # 3. Apply Padding
         x_padded = x + pad_x
         y_padded = y + pad_y
-        
         # 4. Calculate Scale Factor
         scale = target_size / max_dim
-        
         # 5. Apply Scaling
         x_new = x_padded * scale
         y_new = y_padded * scale
-        
         return x_new, y_new
 
     def process_request(self, image_input, offset_config):
-        """
-        Main entry point for backend.
-        
-        Args:
-            image_input: str (path) or PIL.Image
-            offset_config: List containing exactly 7 elements:
-                0. RIGHT_WRIST_OFFSET (x, y)
-                1. RIGHT_ELBOW_OFFSET (x, y)
-                2. LEFT_WRIST_OFFSET (x, y)
-                3. LEFT_ELBOW_OFFSET (x, y)
-                4. RIGHT_HIP_OFFSET (x, y)
-                5. LEFT_HIP_OFFSET (x, y)
-        
-        Returns:
-            PIL.Image of the result
-        """
         HIP_SCALE = 1.0
-        # Unpack Configuration
         try:
             RIGHT_WRIST = tuple(offset_config[0])
             RIGHT_ELBOW = tuple(offset_config[1])
@@ -306,9 +305,7 @@ class PoseCorrectionPipeline:
 
         # Load Image
         if isinstance(image_input, (bytes, bytearray)):
-            # Received raw PNG/JPG bytes
             raw_image = Image.open(BytesIO(image_input)).convert("RGB")
-
         else:
             raise TypeError("image_input must be bytes")
         
@@ -324,17 +321,9 @@ class PoseCorrectionPipeline:
         original_image = self._make_square(raw_image, 512)
         src_np = np.array(original_image)
         
-        # --- 2. Pose Detection ---
-        mp_results, shape = self.mp_helper.process_image(original_image)
-        kps_old = self.mp_helper.get_coco_keypoints(mp_results, shape)
-        
-
-        # RIGHT_WRIST_OFFSET = (RIGHT_WRIST[0] - kps_old[10][0], RIGHT_WRIST[1] - kps_old[10][1])
-        # RIGHT_ELBOW_OFFSET = (RIGHT_ELBOW[0] - kps_old[8][0], RIGHT_ELBOW[1] - kps_old[8][1])
-        # LEFT_WRIST_OFFSET = (LEFT_WRIST[0] - kps_old[9][0], LEFT_WRIST[1] - kps_old[9][1])
-        # LEFT_ELBOW_OFFSET = (LEFT_ELBOW[0] - kps_old[7][0], LEFT_ELBOW[1] - kps_old[7][1])
-        # RIGHT_HIP_OFFSET = (RIGHT_HIP[0] - kps_old[12][0], RIGHT_HIP[1] - kps_old[12][1])
-        # LEFT_HIP_OFFSET = (LEFT_HIP[0] - kps_old[11][0], LEFT_HIP[1] - kps_old[11][1])
+        # --- 2. Pose Detection (USING MOVENET) ---
+        raw_kps, shape = self.pose_helper.process_image(original_image)
+        kps_old = self.pose_helper.get_coco_keypoints(raw_kps, shape)
 
         def axis_zero(diff):
             return 0 if abs(diff) < 2 else diff
@@ -343,32 +332,33 @@ class PoseCorrectionPipeline:
         dx = RIGHT_WRIST[0] - kps_old[10][0]
         dy = RIGHT_WRIST[1] - kps_old[10][1]
         RIGHT_WRIST_OFFSET = (axis_zero(dx), axis_zero(dy))
-
+        print("Right wrist offset: ", RIGHT_WRIST_OFFSET)
         # RIGHT ELBOW
         dx = RIGHT_ELBOW[0] - kps_old[8][0]
         dy = RIGHT_ELBOW[1] - kps_old[8][1]
         RIGHT_ELBOW_OFFSET = (axis_zero(dx), axis_zero(dy))
+        print("Right Elbow offset: ", RIGHT_ELBOW_OFFSET)
 
         # LEFT WRIST
         dx = LEFT_WRIST[0] - kps_old[9][0]
         dy = LEFT_WRIST[1] - kps_old[9][1]
         LEFT_WRIST_OFFSET = (axis_zero(dx), axis_zero(dy))
-
+        print("Left wrist offset: ", LEFT_WRIST_OFFSET)
         # LEFT ELBOW
         dx = LEFT_ELBOW[0] - kps_old[7][0]
         dy = LEFT_ELBOW[1] - kps_old[7][1]
         LEFT_ELBOW_OFFSET = (axis_zero(dx), axis_zero(dy))
-
+        print("Left wrist offset: ", LEFT_WRIST_OFFSET)
         # RIGHT HIP
         dx = RIGHT_HIP[0] - kps_old[12][0]
         dy = RIGHT_HIP[1] - kps_old[12][1]
         RIGHT_HIP_OFFSET = (axis_zero(dx), axis_zero(dy))
-
+        print("Right hip offset: ", RIGHT_HIP_OFFSET)
         # LEFT HIP
         dx = LEFT_HIP[0] - kps_old[11][0]
         dy = LEFT_HIP[1] - kps_old[11][1]
         LEFT_HIP_OFFSET = (axis_zero(dx), axis_zero(dy))
-
+        print("Left hip offset: ", LEFT_HIP_OFFSET)
         # --- 3. Segmentation ---
         person_mask = self._get_person_mask(src_np, kps_old)
         
@@ -412,7 +402,7 @@ class PoseCorrectionPipeline:
             kps_new[12] = mid + (R_hip - mid) * HIP_SCALE
 
         # Draw New Skeleton
-        viz_skel_new = self.mp_helper.draw_skeleton(kps_new, shape)
+        viz_skel_new = self.pose_helper.draw_skeleton(kps_new, shape)
         
         # Inject Synthetic Hands
         if redraw_right_hand:
@@ -539,11 +529,5 @@ class PoseCorrectionPipeline:
             orig_w,          
             orig_h           
         )
-
-        # buffer = BytesIO()
-        # restored_img.save(buffer, format="PNG")
-        # png_bytes = buffer.getvalue()
-
-        # return png_bytes
 
         return restored_img
