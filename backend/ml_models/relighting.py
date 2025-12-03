@@ -43,7 +43,7 @@ class RelightingModel:
         Returns:
             tuple: (relit_image: PIL Image, mask: numpy array, metadata: dict)
         """
-        # Convert mask to numpy array if it's a PIL Image
+        #convert mask to numpy array if its a PIL Image
         if isinstance(mask, Image.Image):
             mask = np.array(mask.convert("L")) > 127
         

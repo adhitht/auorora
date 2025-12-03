@@ -7,6 +7,6 @@ from .image_ops import *
 __all__ = [
     'generate_env_map_from_image',
     'read_hdri_map',
-    'composite_with_shadows',
+    'composite_relit',
     'preprocess_object',
 ]

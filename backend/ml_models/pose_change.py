@@ -275,7 +275,7 @@ class PoseCorrectionPipeline:
         
         return x_new, y_new
 
-def process_request(self, image_input, offset_config, number_of_steps = 30, strength = 0.85, controlnet_conditioning = 1.5):
+    def process_request(self, image_input, offset_config, number_of_steps = 30, strength = 0.85, controlnet_conditioning = 1.5):
         """
         Main entry point for backend.
         

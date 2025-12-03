@@ -199,7 +199,7 @@ def estimate_light_source_strength(env_torch):
     return shadow_strength
 
 
-def composite_with_shadows(depth_estimator, upsampler, original_pil, relit_pil, mask, meta, hdri_path, rot_angle, shadow_reach=0.4, debug=False, upscale_factor=2, use_realesrgan=True):
+def composite_relit(depth_estimator, upsampler, original_pil, relit_pil, mask, meta, hdri_path, rot_angle, shadow_reach=0.4, debug=False, upscale_factor=2, use_realesrgan=True):
     """
     Composites the relit object back into the original scene with automatic 2x upscaling.
     

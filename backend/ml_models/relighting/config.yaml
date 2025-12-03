@@ -1,27 +1,23 @@
-#hardware config
-device: "cuda"
-dtype: "float16"      # use float32 for CPU
+# #hardware config
+# device: "cuda"
+# dtype: "float16"      # use float32 for CPU
 
-# Object / Rendering Configuration
+#object/rendering Configuration
 target_resolution: 512
 background_color: 1.0
 
-# Neural Gaffer Configuration
+#Neural Gaffer Configuration
 neural_gaffer:
-  base_model_id: "kxic/zero123-xl"        # Official base model
+  base_model_id: "kxic/zero123-xl" #this is the base model that they used
   checkpoint_dir: "./neural_gaffer_res256/checkpoint-80000"
 
-# Environment Map Generator Configuration
+#environment map generator configuration
 env_map:
   metadata_path: "./env_map/envmapsmetadata.json"
   exr_folder: "./env_map/"
   light_source_threshold: 20.0
-  enable_custom_generation: true  # Set to false to only use pre-existing HDRIs
+  enable_custom_generation: true  #set to false if you dont want custom envmap generation
 
-#TODO : delete
-# SAM2 Model Configuration
-device_sam2: "cuda"   # SAM2 can also run on CPU if needed
-sam2:
-  checkpoint: "./sam2_hiera_large.pt"
-  config: "sam2_hiera_l.yaml"
-
+#Real-ESRGAN upsampler configuration
+upsampler:
+  use_tiling: false  #for low VRAM devices, this can be set to true, to reduce VRAM consumption

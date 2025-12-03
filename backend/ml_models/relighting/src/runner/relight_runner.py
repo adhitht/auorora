@@ -6,7 +6,7 @@ from PIL import Image
 from typing import Optional, Dict, List
 from config import cfg
 from src.models.neural_gaffer import build_pipeline
-from src.utils.image_ops import read_hdri_map, composite_with_shadows, generate_env_map_from_image
+from src.utils.image_ops import read_hdri_map, composite_relit, generate_env_map_from_image
 import upscaler
 
 
@@ -67,14 +67,9 @@ def relight_object(pipe, depth_estimator, upsampler, image_path, mask, hdri_path
     end = time.time()
     if debug:
         print("Diffusion took : ", end - start)
-
-    #add shadows
-        print("\n" + "=" * 60)
-        print("Compositing with Shadows")
-        print("=" * 60)
         
-    #call final composition function with upscaling
-    final_result = composite_with_shadows(
+    #call final composition function
+    final_result = composite_relit(
         depth_estimator=depth_estimator,
         upsampler=upsampler,
         original_pil=original_pil,
@@ -96,10 +91,7 @@ def relight_object(pipe, depth_estimator, upsampler, image_path, mask, hdri_path
 
 def init_models():
     pipe = build_pipeline()
-    print("Initializing Real-ESRGAN upsampler...")
-    upsampler_model = upscaler.get_upsampler(model_name='RealESRGAN_x4plus', scale=4, tile=0, half=True)
-    if upsampler_model is not None:
-        print("✓ Real-ESRGAN upsampler loaded successfully")
-    else:
-        print("⚠️ Real-ESRGAN upsampler could not be loaded, will fallback to LANCZOS")
+    upsampler_model = upscaler.init_upsampler()
+    if upsampler_model is None:
+        print("[WARNING] : Real-ESRGAN upsampler could not be loaded, will fallback to LANCZOS")
     return pipe, upsampler_model
