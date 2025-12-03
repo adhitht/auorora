@@ -1,4 +1,4 @@
-import 'package:apex/theme/liquid_glass_theme.dart';
+import 'package:aurora/theme/liquid_glass_theme.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -196,10 +196,7 @@ class _AnimatedMenu extends StatefulWidget {
   final VoidCallback onDownload;
   final VoidCallback onShare;
 
-  const _AnimatedMenu({
-    required this.onDownload,
-    required this.onShare,
-  });
+  const _AnimatedMenu({required this.onDownload, required this.onShare});
 
   @override
   State<_AnimatedMenu> createState() => _AnimatedMenuState();
@@ -241,17 +238,20 @@ class _AnimatedMenuState extends State<_AnimatedMenu>
       ),
     );
 
-    _widthAnimation = Tween<double>(begin: 42.0, end: 200.0).animate(
-      curvedAnimation,
-    );
+    _widthAnimation = Tween<double>(
+      begin: 42.0,
+      end: 200.0,
+    ).animate(curvedAnimation);
 
-    _heightAnimation = Tween<double>(begin: 42.0, end: 110.0).animate(
-      curvedAnimation,
-    );
+    _heightAnimation = Tween<double>(
+      begin: 42.0,
+      end: 110.0,
+    ).animate(curvedAnimation);
 
-    _radiusAnimation = Tween<double>(begin: 21.0, end: 16.0).animate(
-      curvedAnimation,
-    );
+    _radiusAnimation = Tween<double>(
+      begin: 21.0,
+      end: 16.0,
+    ).animate(curvedAnimation);
 
     _controller.forward();
   }
@@ -289,7 +289,9 @@ class _AnimatedMenuState extends State<_AnimatedMenu>
                   child: Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF1C1C1E).withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(_radiusAnimation.value),
+                      borderRadius: BorderRadius.circular(
+                        _radiusAnimation.value,
+                      ),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: 0.12),
                         width: 0.5,

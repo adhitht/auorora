@@ -2,8 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:apex/widgets/glass_button.dart';
-import 'package:apex/widgets/tool_button.dart';
+import 'package:aurora/widgets/glass_button.dart';
+import 'package:aurora/widgets/tool_button.dart';
 import 'package:crop_image/crop_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -299,7 +299,6 @@ class CropEditorWidgetState extends State<CropEditorWidget> {
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-
               const SizedBox(width: 44),
 
               Container(

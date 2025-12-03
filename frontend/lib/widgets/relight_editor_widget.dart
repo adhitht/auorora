@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:apex/services/relighting_service.dart';
+import 'package:aurora/services/relighting_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -18,13 +18,10 @@ import 'light_paint_stroke.dart';
 import 'light_paint_painter.dart';
 import 'liquid_color_slider.dart';
 import 'liquid_slider.dart';
-import 'package:apex/models/relighting_model.dart';
+import 'package:aurora/models/relighting_model.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-enum RelightMode {
-  relight,
-  custom,
-}
+enum RelightMode { relight, custom }
 
 enum RelightTool {
   exposure,
@@ -241,9 +238,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     }
 
     try {
-      final processedFile = await _createAdjustedImageFile(
-        processedBytes,
-      );
+      final processedFile = await _createAdjustedImageFile(processedBytes);
 
       if (mounted) {
         final adjustments = _values.map(
@@ -901,8 +896,10 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
         setState(() {
           _maskImage = maskImage;
           if (_isLightPaintSelecting) {
-            final double scaleX = widget.segmentationService.originalWidth / width;
-            final double scaleY = widget.segmentationService.originalHeight / height;
+            final double scaleX =
+                widget.segmentationService.originalWidth / width;
+            final double scaleY =
+                widget.segmentationService.originalHeight / height;
 
             _selectedObjectBounds = Rect.fromLTRB(
               minX * scaleX,
@@ -943,7 +940,8 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     if (_selectedObjectBounds == null) return;
 
     // Convert mask bounds to view coordinates
-    final double scaleX = imageSize.width / widget.segmentationService.originalWidth;
+    final double scaleX =
+        imageSize.width / widget.segmentationService.originalWidth;
     final double scaleY =
         imageSize.height / widget.segmentationService.originalHeight;
 
@@ -1075,9 +1073,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                           ? _buildLightPaintControls()
                           : _buildAdjustmentControls(),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     _buildBottomBar(),
                   ],
                 ),
@@ -1158,7 +1156,6 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
           setState(() {
             _currentMode = mode;
             _isLightPaintActive = mode == RelightMode.relight;
-
           });
           widget.onControlPanelReady?.call(buildControlPanel);
         }
@@ -1173,7 +1170,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
         width: 20,
         height: 20,
         colorFilter: ColorFilter.mode(
-          isSelected ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.5),
+          isSelected
+              ? LiquidGlassTheme.primary
+              : Colors.white.withValues(alpha: 0.5),
           BlendMode.srcIn,
         ),
       ),
@@ -1190,18 +1189,24 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
       onTap: onTap,
       width: 44,
       height: 44,
-      backgroundColor: isPrimary 
-          ? Colors.white.withValues(alpha: 0.1) 
-          : (isActive ? LiquidGlassTheme.bottomBarPrimaryColor.withValues(alpha: 0.2) : Colors.transparent),
+      backgroundColor: isPrimary
+          ? Colors.white.withValues(alpha: 0.1)
+          : (isActive
+                ? LiquidGlassTheme.bottomBarPrimaryColor.withValues(alpha: 0.2)
+                : Colors.transparent),
       borderColor: isPrimary
           ? Colors.white.withValues(alpha: 0.2)
-          : (isActive ? LiquidGlassTheme.bottomBarPrimaryColor : Colors.white.withValues(alpha: 0.2)),
+          : (isActive
+                ? LiquidGlassTheme.bottomBarPrimaryColor
+                : Colors.white.withValues(alpha: 0.2)),
       child: SvgPicture.asset(
         assetPath,
         width: 20,
         height: 20,
         colorFilter: ColorFilter.mode(
-          isActive ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.6),
+          isActive
+              ? LiquidGlassTheme.primary
+              : Colors.white.withValues(alpha: 0.6),
           BlendMode.srcIn,
         ),
       ),
@@ -1285,7 +1290,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
               // Spot Light Tool
               _buildGroupToolButton(
                 assetPath: 'assets/icons/bulb.svg',
-                isActive: !_isLightPaintMoving && _lightPaintTool == LightPaintType.spot,
+                isActive:
+                    !_isLightPaintMoving &&
+                    _lightPaintTool == LightPaintType.spot,
                 onTap: () {
                   HapticFeedback.mediumImpact();
                   setState(() {
@@ -1296,11 +1303,13 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                 },
               ),
               const SizedBox(width: 12),
-              
+
               // Brush Tool
               _buildGroupToolButton(
                 assetPath: 'assets/icons/pencil.svg',
-                isActive: !_isLightPaintMoving && _lightPaintTool == LightPaintType.brush,
+                isActive:
+                    !_isLightPaintMoving &&
+                    _lightPaintTool == LightPaintType.brush,
                 onTap: () {
                   HapticFeedback.mediumImpact();
                   setState(() {
@@ -1311,7 +1320,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                 },
               ),
               const SizedBox(width: 12),
-              
+
               // Pan Tool
               _buildGroupToolButton(
                 assetPath: 'assets/icons/hand.svg',
@@ -1348,7 +1357,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
           width: 20,
           height: 20,
           colorFilter: ColorFilter.mode(
-            isActive ? LiquidGlassTheme.primary : Colors.white.withValues(alpha: 0.4),
+            isActive
+                ? LiquidGlassTheme.primary
+                : Colors.white.withValues(alpha: 0.4),
             BlendMode.srcIn,
           ),
         ),
