@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/header.png" alt="Aurora Header" width="100%" />
+  <img src="assets/header.png" alt="Aurora Header" width="55%" />
 
   **Editing app for the future**
 
