@@ -20,10 +20,17 @@ class PoseRequest extends $pb.GeneratedMessage {
   factory PoseRequest({
     $core.List<$core.int>? imageData,
     $core.List<$core.int>? newSkeletonData,
+    $core.int? numSteps,
+    $core.double? controlnetConditioning,
+    $core.double? strength,
   }) {
     final result = create();
     if (imageData != null) result.imageData = imageData;
     if (newSkeletonData != null) result.newSkeletonData = newSkeletonData;
+    if (numSteps != null) result.numSteps = numSteps;
+    if (controlnetConditioning != null)
+      result.controlnetConditioning = controlnetConditioning;
+    if (strength != null) result.strength = strength;
     return result;
   }
 
@@ -44,6 +51,10 @@ class PoseRequest extends $pb.GeneratedMessage {
         1, _omitFieldNames ? '' : 'imageData', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(
         2, _omitFieldNames ? '' : 'newSkeletonData', $pb.PbFieldType.OY)
+    ..aI(3, _omitFieldNames ? '' : 'numSteps')
+    ..aD(4, _omitFieldNames ? '' : 'controlnetConditioning',
+        fieldType: $pb.PbFieldType.OF)
+    ..aD(5, _omitFieldNames ? '' : 'strength', fieldType: $pb.PbFieldType.OF)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -82,6 +93,33 @@ class PoseRequest extends $pb.GeneratedMessage {
   $core.bool hasNewSkeletonData() => $_has(1);
   @$pb.TagNumber(2)
   void clearNewSkeletonData() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get numSteps => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set numSteps($core.int value) => $_setSignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasNumSteps() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearNumSteps() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.double get controlnetConditioning => $_getN(3);
+  @$pb.TagNumber(4)
+  set controlnetConditioning($core.double value) => $_setFloat(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasControlnetConditioning() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearControlnetConditioning() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.double get strength => $_getN(4);
+  @$pb.TagNumber(5)
+  set strength($core.double value) => $_setFloat(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasStrength() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearStrength() => $_clearField(5);
 }
 
 class PoseResponse extends $pb.GeneratedMessage {

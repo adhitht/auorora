@@ -55,6 +55,17 @@ class PoseChangingService(pose_pb2_grpc.PoseChangingServiceServicer):
             image = Image.open(io.BytesIO(image_data))
             
             offset_config = []
+            num_steps = 30
+            controlnet_conditioning = 0.85
+            strength = 1.5
+
+            if request.num_steps:
+                num_steps = request.num_steps
+            if request.controlnet_conditioning:
+                controlnet_conditioning = request.controlnet_conditioning
+            if request.strength:
+                strength = request.strength
+
             if request.new_skeleton_data:
                 try:
                     json_str = request.new_skeleton_data.decode('utf-8')
@@ -69,7 +80,13 @@ class PoseChangingService(pose_pb2_grpc.PoseChangingServiceServicer):
                  print("No offset config provided, returning original image")
                  processed_image = image
             else:
-                processed_image = pose_pipeline.process_request(image_data, offset_config)
+                processed_image = pose_pipeline.process_request(
+                    image_input=image_data, 
+                    offset_config=offset_config, 
+                    number_of_steps=num_steps, 
+                    strength=strength, 
+                    controlnet_conditioning=controlnet_conditioning
+                )
             
             output_buffer = io.BytesIO()
             processed_image.save(output_buffer, format='PNG')

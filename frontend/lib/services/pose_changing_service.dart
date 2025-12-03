@@ -23,11 +23,24 @@ class PoseChangingService {
 
   Future<Uint8List?> changePose(
     Uint8List imageBytes,
-    Uint8List newSkeletonBytes,
-  ) async {
+    Uint8List newSkeletonBytes, {
+    int? numSteps,
+    double? controlnetConditioning,
+    double? strength,
+  }) async {
     try {
       final request = PoseRequest()..imageData = imageBytes;
       request.newSkeletonData = newSkeletonBytes;
+
+      if (numSteps != null) {
+        request.numSteps = numSteps;
+      }
+      if (controlnetConditioning != null) {
+        request.controlnetConditioning = controlnetConditioning;
+      }
+      if (strength != null) {
+        request.strength = strength;
+      }
 
       final response = await _stub.changePose(request);
       return Uint8List.fromList(response.processedImageData);

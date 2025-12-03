@@ -151,6 +151,9 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
                   double currentX = proposedX;
                   double currentY = proposedY;
 
+
+                  // TODO: uncomment this
+                  /*
                   // Iteratively refine the position
                   for (int i = 0; i < 5; i++) {
                     // We need to check constraints against all connected neighbors of the CURRENT point.
@@ -229,6 +232,7 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
                       }
                     }
                   }
+                  */
 
                   // Clamp to image bounds (0-1)
                   final clampedX = currentX.clamp(0.0, 1.0);

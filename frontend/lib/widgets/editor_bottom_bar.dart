@@ -8,7 +8,7 @@ import '../theme/liquid_glass_theme.dart';
 import '../services/suggestions_service.dart';
 
 enum EditorTool {
-  crop("assets/icons/transform.svg", "Crop"),
+  crop("assets/icons/transform.svg", "Transform"),
   relight("assets/icons/relight.svg", "Relight"),
   reframe("assets/icons/reframe.svg", "Reframe"),
   chat("assets/icons/star.svg", "Chat");

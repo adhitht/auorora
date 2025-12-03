@@ -24,17 +24,17 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\npose.proto\x12\x04pose\"<\n\x0bPoseRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\x12\x19\n\x11new_skeleton_data\x18\x02 \x01(\x0c\",\n\x0cPoseResponse\x12\x1c\n\x14processed_image_data\x18\x01 \x01(\x0c\x32J\n\x13PoseChangingService\x12\x33\n\nChangePose\x12\x11.pose.PoseRequest\x1a\x12.pose.PoseResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\npose.proto\x12\x04pose\"\x82\x01\n\x0bPoseRequest\x12\x12\n\nimage_data\x18\x01 \x01(\x0c\x12\x19\n\x11new_skeleton_data\x18\x02 \x01(\x0c\x12\x11\n\tnum_steps\x18\x03 \x01(\x05\x12\x1f\n\x17\x63ontrolnet_conditioning\x18\x04 \x01(\x02\x12\x10\n\x08strength\x18\x05 \x01(\x02\",\n\x0cPoseResponse\x12\x1c\n\x14processed_image_data\x18\x01 \x01(\x0c\x32J\n\x13PoseChangingService\x12\x33\n\nChangePose\x12\x11.pose.PoseRequest\x1a\x12.pose.PoseResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'pose_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_POSEREQUEST']._serialized_start=20
-  _globals['_POSEREQUEST']._serialized_end=80
-  _globals['_POSERESPONSE']._serialized_start=82
-  _globals['_POSERESPONSE']._serialized_end=126
-  _globals['_POSECHANGINGSERVICE']._serialized_start=128
-  _globals['_POSECHANGINGSERVICE']._serialized_end=202
+  _globals['_POSEREQUEST']._serialized_start=21
+  _globals['_POSEREQUEST']._serialized_end=151
+  _globals['_POSERESPONSE']._serialized_start=153
+  _globals['_POSERESPONSE']._serialized_end=197
+  _globals['_POSECHANGINGSERVICE']._serialized_start=199
+  _globals['_POSECHANGINGSERVICE']._serialized_end=273
 # @@protoc_insertion_point(module_scope)
