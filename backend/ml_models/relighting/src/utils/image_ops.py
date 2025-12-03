@@ -133,7 +133,8 @@ def read_hdri_map(hdri_path, target_res=(256, 256), rot_angle=0.0):
     #LDR-part
     ldr = np.clip(hdri, 0, 1) ** (1/2.2)
 
-    #normalize
+    #normalize both to [-1, 1] range
+    hdr = hdr * 2.0 - 1.0
     ldr = ldr * 2.0 - 1.0
 
 
@@ -243,6 +244,9 @@ def composite_with_shadows(depth_estimator, original_pil, relit_pil, mask, meta,
     )
     # az, alt = get_light_direction_from_hdr(second_target_envir_map, applied_rot_angle=rot_angle)
     az, alt = get_light_direction_from_hdr(second_target_envir_map)
+    
+    # Flip the azimuth to match the horizontally flipped environment map
+    az = -az
 
     #shadow strength
     light_source_strength = estimate_light_source_strength(second_target_envir_map)
@@ -316,6 +320,7 @@ def composite_with_shadows(depth_estimator, original_pil, relit_pil, mask, meta,
     return Image.fromarray(np.clip(comp * 255.0, 0, 255).astype(np.uint8))
 
 
+
 def draw_geometry(img_canvas, geometry, width, height, color_bgr, opacity=1.0, extra_thickness=0):
     """
     Helper to draw primitives (Lines or Circles) onto a canvas, for environment map generation.
@@ -336,7 +341,7 @@ def draw_geometry(img_canvas, geometry, width, height, color_bgr, opacity=1.0, e
             coords = geometry['coordinates']
         else:
             return
-        pts = np.array([[int(p[0] * width), int(p[1] * height)] for p in coords], np.int32)
+        pts = np.array([[int((0.25 + p[0] * 0.5) * width), int(p[1] * height)] for p in coords], np.int32)
         pts = pts.reshape((-1, 1, 2))
 
         #line
@@ -352,14 +357,14 @@ def draw_geometry(img_canvas, geometry, width, height, color_bgr, opacity=1.0, e
             raw_radius = geometry.get('radius', 5)
         else:
             return
-        cx, cy = int(c[0] * width), int(c[1] * height)
+        cx, cy = int((0.25 + c[0] * 0.5) * width), int(c[1] * height)
 
         #scaling factor : hyperparmeter
         radius = int(raw_radius * 5) + extra_thickness
+        radius = radius//4
 
         #circle
         cv2.circle(img_canvas, (cx, cy), radius, color_bgr, -1)
-
 
 def render_multi_light_layer(width, height, lights_list):
     """
