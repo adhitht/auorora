@@ -42,7 +42,7 @@ class MoveNetPoseHelper:
     Replaces HolisticHelper. Uses tflite-runtime to run MoveNet 
     instead of Mediapipe or TensorFlow Hub.
     """
-    def __init__(self, model_path='movenet_lightning.tflite'):
+    def __init__(self, model_path='movenet_singlepose_thunder_4.tflite'):
         self.colors = [[255, 0, 85], [255, 0, 0], [255, 85, 0], [255, 170, 0], [255, 255, 0],
                        [170, 255, 0], [85, 255, 0], [0, 255, 0], [0, 255, 85], [0, 255, 170],
                        [0, 255, 255], [0, 170, 255], [0, 85, 255], [0, 0, 255], [255, 0, 170],
@@ -60,22 +60,45 @@ class MoveNetPoseHelper:
         
         # MoveNet Thunder usually expects 256x256, Lightning 192x192
         self.input_size = self.input_details[0]['shape'][1] 
+        
+        # Store last run details for coordinate mapping
+        self.last_padding = (0, 0) # pad_x, pad_y
+        self.last_scale = 1.0
 
     def process_image(self, image_pil):
         """
-        Preprocesses image, runs inference, and returns keypoints + shape.
+        Preprocesses image (Padding+Resize), runs inference.
         Returns: (keypoints_normalized_coco_format, original_shape)
         """
         image_np = np.array(image_pil)
         original_h, original_w, _ = image_np.shape
 
-        # Resize and Pad to square while maintaining aspect ratio
-        input_image = cv2.resize(image_np, (self.input_size, self.input_size))
+        # --- Aspect-Ratio Preserving Resize (Letterboxing) ---
+        # 1. Determine scaling factor
+        scale = min(self.input_size / original_w, self.input_size / original_h)
+        self.last_scale = scale
+        
+        new_w = int(original_w * scale)
+        new_h = int(original_h * scale)
+        
+        # 2. Resize image
+        resized_image = cv2.resize(image_np, (new_w, new_h))
+        
+        # 3. Pad to square (input_size x input_size)
+        input_image = np.zeros((self.input_size, self.input_size, 3), dtype=np.uint8)
+        
+        # Calculate padding (center alignment)
+        pad_x = (self.input_size - new_w) // 2
+        pad_y = (self.input_size - new_h) // 2
+        self.last_padding = (pad_x, pad_y)
+        
+        # Place resized image into black canvas
+        input_image[pad_y:pad_y+new_h, pad_x:pad_x+new_w] = resized_image
+        
+        # 4. Add batch dimension
         input_image = np.expand_dims(input_image, axis=0)
         
-        # MoveNet expects int32 or float32 depending on version, usually uint8 for quant or float for others
-        # Thunder int8 expects uint8, Float models expect float32. 
-        # Checking input dtype expectation:
+        # MoveNet expects int32 or float32 depending on version
         if self.input_details[0]['dtype'] == np.float32:
             input_image = (np.float32(input_image) - 127.5) / 127.5
         
@@ -90,17 +113,32 @@ class MoveNetPoseHelper:
 
     def get_coco_keypoints(self, results, shape):
         """
-        Converts MoveNet normalized output (y, x, score) to pixel coordinates (x, y, score).
-        MoveNet output is already COCO topology, so no remapping needed, just scaling.
+        Converts MoveNet normalized output to original pixel coordinates,
+        accounting for the padding and scaling applied during inference.
         """
-        keypoints_norm = results # It's just the array from process_image
-        H, W, _ = shape
+        keypoints_norm = results
+        # shape is (original_h, original_w, 3) passed from process_image
         
         kps = np.zeros((17, 3))
+        pad_x, pad_y = self.last_padding
+        scale = self.last_scale
         
         for idx in range(17):
             y_norm, x_norm, score = keypoints_norm[idx]
-            kps[idx] = [x_norm * W, y_norm * H, score]
+            
+            # 1. Convert normalized (0-1) to Input Tensor coordinates (e.g., 0-192)
+            y_tensor = y_norm * self.input_size
+            x_tensor = x_norm * self.input_size
+            
+            # 2. Remove Padding
+            y_no_pad = y_tensor - pad_y
+            x_no_pad = x_tensor - pad_x
+            
+            # 3. Scale back to original image size
+            y_orig = y_no_pad / scale
+            x_orig = x_no_pad / scale
+            
+            kps[idx] = [x_orig, y_orig, score]
             
         return kps
 
