@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 CLI to run the relighting flow locally or in cloud containers.
 
@@ -59,9 +58,8 @@ def main():
     if args.lights_json:
         with open(args.lights_json, 'r') as f:
             data = json.load(f)
-            # Support both {"lights": [...]} and direct [...] formats
             lights_config = data.get('lights', data) if isinstance(data, dict) and 'lights' in data else data
-        print(f"💡 Loaded {len(lights_config)} light configurations")
+
     
     # Set default HDRI path
     hdri_path = args.hdri if args.hdri else None

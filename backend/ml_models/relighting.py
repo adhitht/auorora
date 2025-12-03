@@ -14,7 +14,7 @@ from src.runner.relight_runner import init_models, relight_object
 class RelightingModel:
     def __init__(self):
         """Initialize the relighting pipeline."""
-        print("Initializing Relighting Model...")
+        print("[INFO] : Initializing Relighting Model...")
         self.pipeline, self.upsampler = init_models()
         if self.pipeline is None:
             raise RuntimeError("Failed to initialize relighting pipeline")

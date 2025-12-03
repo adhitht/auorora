@@ -16,7 +16,7 @@ def load_neural_gaffer_unet_weights(unet, checkpoint_folder: str):
 	checkpoint_path = os.path.join(checkpoint_folder, "model.safetensors")
 
 
-	print(f"Loading NG UNet weights: {checkpoint_path}")
+	print(f"[INFO] : Loading NG UNet weights: {checkpoint_path}")
 
 	state_dict = load_file(checkpoint_path)
 	
@@ -31,7 +31,7 @@ def load_neural_gaffer_unet_weights(unet, checkpoint_folder: str):
 		cleaned[k2] = v
 
 	missing, unexpected = unet.load_state_dict(cleaned, strict=False)
-	print(f"✓ Loaded UNet (missing={len(missing)}, unexpected={len(unexpected)})")
+	print(f"[INFO] : Loaded UNet weights for Relighting Pipeline")
 	return unet
 
 
@@ -47,7 +47,7 @@ def build_pipeline():
 	DEVICE = cfg.DEVICE
 	GAFFER_CKPT_DIR = cfg.GAFFER_CKPT_DIR
 
-	print(f"Loading base models from {BASE_MODEL_ID}...")
+	print(f"[INFO] : Loading base models for Relight Pipeline from {BASE_MODEL_ID}.")
 	vae = AutoencoderKL.from_pretrained(BASE_MODEL_ID, subfolder="vae", torch_dtype=DTYPE)
 	unet = UNet2DConditionModel.from_pretrained(BASE_MODEL_ID, subfolder="unet", torch_dtype=DTYPE)
 	sched = DDIMScheduler.from_pretrained(BASE_MODEL_ID, subfolder="scheduler")
