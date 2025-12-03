@@ -275,7 +275,7 @@ class PoseCorrectionPipeline:
         
         return x_new, y_new
 
-    def process_request(self, image_input, offset_config, number_of_steps = 30, strength = 0.85, controlnet_conditioning = 1.5):
+def process_request(self, image_input, offset_config, number_of_steps = 30, strength = 0.85, controlnet_conditioning = 1.5):
         """
         Main entry point for backend.
         
@@ -328,13 +328,6 @@ class PoseCorrectionPipeline:
         mp_results, shape = self.mp_helper.process_image(original_image)
         kps_old = self.mp_helper.get_coco_keypoints(mp_results, shape)
         
-
-        # RIGHT_WRIST_OFFSET = (RIGHT_WRIST[0] - kps_old[10][0], RIGHT_WRIST[1] - kps_old[10][1])
-        # RIGHT_ELBOW_OFFSET = (RIGHT_ELBOW[0] - kps_old[8][0], RIGHT_ELBOW[1] - kps_old[8][1])
-        # LEFT_WRIST_OFFSET = (LEFT_WRIST[0] - kps_old[9][0], LEFT_WRIST[1] - kps_old[9][1])
-        # LEFT_ELBOW_OFFSET = (LEFT_ELBOW[0] - kps_old[7][0], LEFT_ELBOW[1] - kps_old[7][1])
-        # RIGHT_HIP_OFFSET = (RIGHT_HIP[0] - kps_old[12][0], RIGHT_HIP[1] - kps_old[12][1])
-        # LEFT_HIP_OFFSET = (LEFT_HIP[0] - kps_old[11][0], LEFT_HIP[1] - kps_old[11][1])
 
         def axis_zero(diff):
             return 0 if abs(diff) < 10 else diff
@@ -459,7 +452,8 @@ class PoseCorrectionPipeline:
             cv2.line(mask_old_arm_area, (int(kps_old[5][0]), int(kps_old[5][1])), (int(kps_old[7][0]), int(kps_old[7][1])), 255, int(limb_thick*1.4))
             cv2.line(mask_old_arm_area, (int(kps_old[7][0]), int(kps_old[7][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
 
-        # Background Fill
+        # --- IMPROVED FILL: Sternum Sampling & Context Aware ---
+        # 1. Background Color
         safe_bg_mask = cv2.dilate(person_mask, np.ones((5,5), np.uint8), iterations=2)
         bg_mask = cv2.bitwise_not(safe_bg_mask)
         if np.count_nonzero(bg_mask) > 0:
@@ -468,8 +462,51 @@ class PoseCorrectionPipeline:
         else:
             bg_color = src_np[5, 5].tolist()
 
-        input_ai_composition[mask_old_arm_area > 0] = bg_color
+        # 2. Torso Color (Sternum Sampling)
+        img_h, img_w = src_np.shape[:2]
+        poly_pts = [np.array(kps_old[5][:2]), np.array(kps_old[6][:2]), 
+                    np.array(kps_old[12][:2]), np.array(kps_old[11][:2])] # Sho -> Sho -> Hip -> Hip
+
+        # Simulate missing hips
+        if kps_old[12][2] < 0.1: poly_pts[2] = np.array([kps_old[6][0], img_h - 10])
+        if kps_old[11][2] < 0.1: poly_pts[3] = np.array([kps_old[5][0], img_h - 10])
+
+        # Create Torso Mask
+        torso_polygon = np.array(poly_pts, dtype=np.int32)
+        mask_torso_zone = np.zeros((img_h, img_w), dtype=np.uint8)
+        cv2.fillPoly(mask_torso_zone, [torso_polygon], 255)
+
+        # Sample at Sternum (20% down from mid-shoulders)
+        mid_sh_x = (kps_old[5][0] + kps_old[6][0]) / 2
+        mid_sh_y = (kps_old[5][1] + kps_old[6][1]) / 2
+        torso_len = np.linalg.norm(np.array(kps_old[5][:2]) - np.array(kps_old[11][:2]))
+        
+        sample_x = int(mid_sh_x)
+        sample_y = int(mid_sh_y + (torso_len * 0.2))
+        
+        # 20x20 Patch
+        p_s = 10 
+        y1 = max(0, sample_y - p_s); y2 = min(img_h, sample_y + p_s)
+        x1 = max(0, sample_x - p_s); x2 = min(img_w, sample_x + p_s)
+        
+        torso_patch = src_np[y1:y2, x1:x2]
+        if torso_patch.size > 0:
+            torso_color = np.median(torso_patch, axis=(0,1)).astype(int).tolist()
+        else:
+            torso_color = bg_color
+
+        # 3. Apply Dual-Fill
+        # A. Arm overlapping Torso -> Fill with Shirt Color
+        mask_arm_over_body = cv2.bitwise_and(mask_old_arm_area, mask_torso_zone)
+        input_ai_composition[mask_arm_over_body > 0] = torso_color
+
+        # B. Arm overlapping Background -> Fill with BG Color
+        mask_arm_over_bg = cv2.subtract(mask_old_arm_area, mask_torso_zone)
+        input_ai_composition[mask_arm_over_bg > 0] = bg_color
+
+        # Paste new arm ON TOP of the filled area
         input_ai_composition[mask_warped_pixels > 0] = canvas_warped[mask_warped_pixels > 0]
+        
         final_inpaint_mask = cv2.bitwise_or(final_inpaint_mask, mask_old_arm_area)
         final_inpaint_mask = cv2.bitwise_or(final_inpaint_mask, mask_warped_pixels)
 
@@ -539,11 +576,5 @@ class PoseCorrectionPipeline:
             orig_w,          
             orig_h           
         )
-
-        # buffer = BytesIO()
-        # restored_img.save(buffer, format="PNG")
-        # png_bytes = buffer.getvalue()
-
-        # return png_bytes
 
         return restored_img
