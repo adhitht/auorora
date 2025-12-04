@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:grpc/grpc.dart';
 import 'package:aurora/generated/pose.pbgrpc.dart';
+import '../service_locator.dart';
+import 'notification_service.dart';
 
 class PoseChangingService {
   late PoseChangingServiceClient _stub;
@@ -40,6 +42,9 @@ class PoseChangingService {
       if (strength != null) {
         request.strength = strength;
       }
+
+      final notificationService = getIt<NotificationService>();
+      notificationService.show("Processing in the cloud", type: NotificationType.info);
 
       final response = await _stub.changePose(request);
       return Uint8List.fromList(response.processedImageData);
