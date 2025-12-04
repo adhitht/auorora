@@ -467,21 +467,20 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
               }
             }
 
+            final blurredMask = img.gaussianBlur(fullMask, radius: 5);
+
             final harmonizedBytes = await _harmonizationService.harmonize(
               image,
-              fullMask,
+              blurredMask,
             );
 
             if (harmonizedBytes != null) {
               final harmonizedImg = img.decodeImage(harmonizedBytes);
               if (harmonizedImg != null) {
-                // Blend harmonized object back into the composite image
-                // We use the mask to select pixels from harmonizedImg
                 for (int y = 0; y < image.height; y++) {
                   for (int x = 0; x < image.width; x++) {
                     final m = fullMask.getPixel(x, y).r;
                     if (m > 128) {
-                      // If mask is white (object)
                       final hPx = harmonizedImg.getPixel(x, y);
                       image.setPixel(x, y, hPx);
                     }
@@ -489,9 +488,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                 }
               }
             }
-            // -----------------------
 
-            // Encode and save
             await newFile.writeAsBytes(img.encodePng(image));
 
             if (mounted) {
@@ -557,7 +554,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
             ),
           ),
 
-        // Instruction overlay for segmentation
         if (_mode == ReframeMode.segmenting && !_isProcessing)
           Positioned(
             top: 100,
@@ -645,7 +641,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                           : Image.file(widget.imageFile, fit: BoxFit.fill),
                     ),
 
-                    // Segmentation Feedback
                     if (_feedbackMaskImage != null &&
                         (_mode == ReframeMode.segmented ||
                             _mode == ReframeMode.moving ||
@@ -658,7 +653,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                         ),
                       ),
 
-                    // Pose Visualization
                     if (_mode == ReframeMode.posing && _poseResult != null)
                       PoseVisualizationOverlay(
                         poseResult: _poseResult,
@@ -667,7 +661,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                         onLandmarkMoved: _handleLandmarkMove,
                       ),
 
-                    // Segmentation cutout (Move Mode)
                     if (_mode == ReframeMode.moving && _cutoutResult != null)
                       Positioned(
                         left: (_cutoutResult!.x * scale) + _cutoutPosition.dx,
@@ -731,7 +724,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Left Button: Segmentation / Reset
                 GlassButton(
                   onTap: () {
                     setState(() {
@@ -760,7 +752,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                   ),
                 ),
 
-                // Center Pill: Move & Pose Toggle
                 if (_mode != ReframeMode.initial &&
                     _mode != ReframeMode.segmenting)
                   Container(
@@ -780,7 +771,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Move Button (Reframing)
                         _buildPillButton(
                           iconPath: 'assets/icons/move.svg',
                           isActive: _mode == ReframeMode.moving,
@@ -789,7 +779,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
                         const SizedBox(width: 4),
 
-                        // Pose Button (Pose Detection)
                         _buildPillButton(
                           iconPath: 'assets/icons/pose_correction.svg',
                           isActive: _mode == ReframeMode.posing,
@@ -799,10 +788,8 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                     ),
                   )
                 else
-                  // Placeholder to keep layout balanced
                   const SizedBox(width: 48),
 
-                // Right Button: Apply
                 GlassButton(
                   onTap: _applyReframe,
                   width: 48,
@@ -849,7 +836,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         ),
         Expanded(
           child: SizedBox(
-            height: 20, // Compact height
+            height: 20,
             child: LiquidSlider(
               value: value,
               min: min,

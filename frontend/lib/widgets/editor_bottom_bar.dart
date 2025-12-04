@@ -9,6 +9,7 @@ import '../services/suggestions_service.dart';
 import '../services/semantic_router_service.dart';
 import '../services/pipeline_executor.dart';
 import '../services/notification_service.dart';
+import '../services/llm_service.dart';
 import 'relight_editor_controller.dart';
 import 'dart:async';
 
@@ -63,7 +64,8 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   double _x = -4;
   double _width = 0;
 
-  final SuggestionsService _suggestionsService = SuggestionsService();
+  final LlmService _llmService = LlmService();
+  late final SuggestionsService _suggestionsService = SuggestionsService(_llmService);
   List<String> _currentSuggestions = [];
   bool _isLoadingSuggestions = false;
   bool _isTyping = false;
@@ -78,22 +80,22 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   Future<void> _loadSuggestions() async {
     if (_isLoadingSuggestions) return;
     _isLoadingSuggestions = true;
+    if (mounted) setState(() {});
 
-    await _suggestionsService.loadSuggestions();
+    final suggestions = await _suggestionsService.generateSuggestions(widget.detectedTags);
     
     if (mounted) {
       setState(() {
-        final allSuggestions = _suggestionsService.getSuggestionsForTags(widget.detectedTags);
         if (widget.dismissedSuggestions != null) {
-          _currentSuggestions = allSuggestions
+          _currentSuggestions = suggestions
               .where((s) => !widget.dismissedSuggestions!.contains(s))
               .toList();
         } else {
-          _currentSuggestions = allSuggestions;
+          _currentSuggestions = suggestions;
         }
+        _isLoadingSuggestions = false;
       });
     }
-    _isLoadingSuggestions = false;
   }
 
   @override
@@ -226,7 +228,50 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_currentSuggestions.isNotEmpty)
+          if (_isLoadingSuggestions)
+            SizedBox(
+              height: 32,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                itemCount: 3,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  return LiquidGlassLayer(
+                    settings: const LiquidGlassSettings(
+                      thickness: 20,
+                      blur: 10,
+                      glassColor: LiquidGlassTheme.glassDark,
+                    ),
+                    child: LiquidGlass(
+                      shape: LiquidRoundedSuperellipse(borderRadius: 16),
+                      child: Container(
+                        width: 120, // Fixed width for skeleton
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              width: 0.5),
+                        ),
+                        child: Center(
+                          child: Container(
+                            height: 10,
+                            width: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          else if (_currentSuggestions.isNotEmpty)
             SizedBox(
               height: 32,
               child: ListView.separated(
