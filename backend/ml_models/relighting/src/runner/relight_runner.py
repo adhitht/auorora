@@ -2,6 +2,7 @@ import time
 import torch
 import numpy as np
 import os
+import uuid
 from PIL import Image
 from typing import Optional, Dict, List
 from config import cfg
@@ -36,12 +37,16 @@ def relight_object(pipe, depth_estimator, upsampler, image_path, mask, hdri_path
     else:
         original_pil = image_path.convert("RGB")
 
-    #generating custom environment map
+    #generating custom environment map with unique filename in temp directory
+    temp_dir = "./generated_env_maps"
+    os.makedirs(temp_dir, exist_ok=True)
+    unique_id = str(uuid.uuid4())
+    env_map_path = os.path.join(temp_dir, f"env_map_{unique_id}.exr")
     hdri_path = generate_env_map_from_image(
         pil_img=original_pil,
         pil_mask=Image.fromarray((mask * 255).astype(np.uint8)),
         lights_config=lights_config,
-        output_path="./generated_env_map.exr"
+        output_path=env_map_path
     )
 
     #read HDRI map
@@ -84,7 +89,15 @@ def relight_object(pipe, depth_estimator, upsampler, image_path, mask, hdri_path
         use_realesrgan=use_realesrgan
     )
     
-    final_result.save("relit_output.png")
+    #cleanup: delete the generated env map
+    try:
+        if os.path.exists(hdri_path):
+            os.remove(hdri_path)
+            if debug:
+                print(f"[INFO] : Cleaned up env map: {hdri_path}")
+    except Exception as e:
+        print(f"[WARNING] : Failed to delete env map {hdri_path}: {e}")
+    
     return final_result, mask, meta
 
 

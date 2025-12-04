@@ -13,7 +13,6 @@ class PipelineExecutor {
     final params = command['params'] as Map<String, dynamic>?;
     if (params == null) return;
 
-    // Clear existing lights if requested (optional, but good for clean state)
     controller.clearLights();
 
     final lights = params['lights'] as List<dynamic>?;

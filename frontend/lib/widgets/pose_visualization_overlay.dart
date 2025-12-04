@@ -1,4 +1,3 @@
-import 'dart:math' as dart_math;
 import 'package:flutter/material.dart';
 import '../models/pose_landmark.dart';
 import 'liquid_glass_container.dart';
@@ -52,7 +51,6 @@ class PoseVisualizationOverlay extends StatefulWidget {
 
 class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
   int? _draggingIndex;
-  // Store the original landmarks to calculate baseline constraints
   List<PoseLandmark>? _originalLandmarks;
 
   @override
@@ -64,7 +62,6 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
   @override
   void didUpdateWidget(PoseVisualizationOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Only update original landmarks if it's a new detection (ID changed)
     if (widget.poseResult?.id != oldWidget.poseResult?.id) {
       _captureOriginalLandmarks();
     }
@@ -72,7 +69,6 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
 
   void _captureOriginalLandmarks() {
     if (widget.poseResult != null) {
-      // Create a deep copy or just a list copy since PoseLandmark is immutable
       _originalLandmarks = List<PoseLandmark>.from(
         widget.poseResult!.landmarks,
       );
@@ -88,14 +84,12 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
       return const SizedBox.shrink();
     }
 
-    // Fallback if not captured
     if (_originalLandmarks == null && widget.poseResult != null) {
       _captureOriginalLandmarks();
     }
 
     return Stack(
       children: [
-        // Connections (Background)
         CustomPaint(
           size: widget.imageSize,
           painter: _PoseConnectionPainter(
@@ -106,24 +100,21 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
           ),
         ),
 
-        // Landmarks (Foreground Interactive)
         ...widget.poseResult!.landmarks.asMap().entries.map((entry) {
           final index = entry.key;
           final landmark = entry.value;
 
           if (landmark.visibility <= 0.3) return const SizedBox.shrink();
 
-          // Center the touch target
           final left =
-              landmark.x * widget.imageSize.width - 24; // 48x48 touch area
+              landmark.x * widget.imageSize.width - 24;
           final top = landmark.y * widget.imageSize.height - 24;
 
           return Positioned(
             left: left,
             top: top,
             child: GestureDetector(
-              behavior:
-                  HitTestBehavior.translucent, // Ensure touches are caught
+              behavior: HitTestBehavior.translucent,
               onPanStart: (_) {
                 setState(() {
                   _draggingIndex = index;
@@ -132,7 +123,6 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
               onPanUpdate: (details) {
                 if (widget.onLandmarkMoved != null &&
                     _originalLandmarks != null) {
-                  // Add sensitivity multiplier (1.5x) to make movement feel faster
                   final sensitivity = 1.5;
                   final deltaX =
                       (details.delta.dx * sensitivity) / widget.imageSize.width;
@@ -143,16 +133,10 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
                   double proposedX = landmark.x + deltaX;
                   double proposedY = landmark.y + deltaY;
 
-                  // Robust Constraint Solver
-                  // Instead of just projecting to the last constraint, we try to find a position
-                  // that satisfies ALL constraints.
-
-                  // We start with the proposed position.
                   double currentX = proposedX;
                   double currentY = proposedY;
 
 
-                  // TODO: uncomment this
                   /*
                   // Iteratively refine the position
                   for (int i = 0; i < 5; i++) {
@@ -259,13 +243,11 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
                     color: widget.landmarkColor,
                     border: Border.all(color: Colors.white, width: 1),
                     boxShadow: [
-                      // Drop shadow for depth
                       BoxShadow(
                         color: Colors.black.withOpacity(0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
-                      // Glow/Halo when dragging
                       if (_draggingIndex == index)
                         BoxShadow(
                           color: widget.landmarkColor.withOpacity(0.5),
@@ -280,7 +262,6 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
           );
         }),
 
-        // Landmark Name Label (Bottom Right - lifted to avoid bottom bar)
         if (_draggingIndex != null)
           Positioned(
             bottom: 60,
@@ -302,7 +283,6 @@ class _PoseVisualizationOverlayState extends State<PoseVisualizationOverlay> {
   }
 
   String _getLandmarkName(int index) {
-    // Find the PoseLandmarkType that corresponds to this index
     try {
       final type = PoseLandmarkType.values.firstWhere(
         (e) => e.landmarkIndex == index,

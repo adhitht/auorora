@@ -119,14 +119,6 @@ class MIGANInpaintingService {
           inputMaskFloats, [1, 1, _inputSize, _inputSize]);
 
       final runOptions = OrtRunOptions();
-      // Assuming input names based on common practices or previous context. 
-      // If this fails, we'll need to inspect the model's input names.
-      // Usually 'image' and 'mask' or similar.
-      // Let's try to get input names from session if possible, but for now I'll guess 'input_image' and 'input_mask' or just pass by position if the API supports it (it usually requires names).
-      // Wait, I can't easily get input names in Dart without running it. 
-      // I'll try standard names: 'image', 'mask'.
-      
-      // NOTE: I am guessing input names here. If it fails, I will need to check the error message which usually lists expected input names.
       final inputs = {'image': inputOrt, 'mask': maskOrt};
       
       final outputs = _session!.run(runOptions, inputs);
@@ -137,50 +129,13 @@ class MIGANInpaintingService {
 
       debugPrint('MIGANInpaintingService: Inference run complete');
 
-      // Assuming output is the first tensor
       final outputOrt = outputs[0];
-      // final outputFloats = outputOrt?.value as List<List<List<List<double>>>>?; 
-      // Wait, OrtValueTensor.value returns a flattened list or nested list depending on implementation?
-      // In dart onnxruntime, value usually returns the typed list if it's a tensor.
-      // Let's check the type safely.
-      
-      // Actually, let's look at how to extract data.
-      // The `value` property of OrtValueTensor returns the raw data list (e.g. Float32List).
-      // But `outputs` is a List<OrtValue?>.
-      
       if (outputOrt == null) throw Exception("No output from model");
       
-      // The output should be [1, 3, 512, 512]
-      // We need to handle the data extraction.
-      // I'll assume it returns a Float32List for the tensor data.
-      // But wait, the `value` getter might return the list directly.
-      
-      // Let's try to handle it as a flat list and reshape manually.
-      // The `outputs` is List<OrtValue?>.
-      // We need to cast it properly.
-      
-      // NOTE: The exact API for retrieving data might vary. 
-      // I will assume `outputOrt.value` gives me the data.
-      
-      // Let's assume it's a list of floats.
-      // We need to verify the type.
-      
-      // For now, let's just try to access it.
-      // If this part is tricky without docs, I'll stick to a safe assumption.
-      
-      // Re-reading onnxruntime-flutter docs (mental check):
-      // `outputs` is a List<OrtValue?>.
-      // `OrtValue` has a `value` property.
-      
-      // Let's assume we get a List of some sort.
-      
-      // Actually, let's just use dynamic to be safe and cast.
       final rawOutput = (outputOrt as OrtValueTensor).value;
       
       final outputImage = img.Image(width: _inputSize, height: _inputSize);
 
-      // Output shape [1, 3, 512, 512] NCHW
-      // Handle nested list structure from onnxruntime_v2
       final batch0 = (rawOutput as List)[0] as List;
       final rChannel = batch0[0] as List;
       final gChannel = batch0[1] as List;
@@ -206,7 +161,6 @@ class MIGANInpaintingService {
         }
       }
       
-      // Release output values
       for (var element in outputs) {
         element?.release();
       }
@@ -224,7 +178,6 @@ class MIGANInpaintingService {
       return Uint8List.fromList(img.encodePng(inpaintedResized));
     } catch (e) {
       debugPrint('MIGANInpaintingService: Error during inpainting: $e');
-      // Print input/output info if possible to debug
       return null;
     }
   }

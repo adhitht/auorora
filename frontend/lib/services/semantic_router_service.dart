@@ -28,8 +28,7 @@ class SemanticRouterService {
       jsonString = await _llmService.generateResponse(prompt);
       debugPrint('LLM Response: $jsonString');
       
-      // Extract JSON if wrapped in markdown code blocks
-      String cleanJson = jsonString!;
+      String cleanJson = jsonString;
       if (jsonString.contains('```json')) {
         cleanJson = jsonString.split('```json')[1].split('```')[0].trim();
       } else if (jsonString.contains('```')) {
@@ -51,9 +50,6 @@ class SemanticRouterService {
   }
 
   Future<EditorAction> routePrompt(String prompt) async {
-    // This is now redundant as generateCommand handles everything,
-    // but kept for compatibility if needed.
-    // We can just peek at the command.
     final command = await generateCommand(prompt);
     final actionStr = command['action'] as String?;
     

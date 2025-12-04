@@ -9,9 +9,6 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-# from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-# from transformers import CLIPImageProcessor
-
 from mobile_sam import sam_model_registry, SamPredictor
 from diffusers import StableDiffusionControlNetInpaintPipeline, ControlNetModel, UniPCMultistepScheduler
 import mediapipe as mp
@@ -85,42 +82,31 @@ class PoseCorrectionPipeline:
         self.device = device if torch.cuda.is_available() else 'cpu'
         print(f"Initializing PoseCorrectionPipeline on {self.device}...")
         
-        # 1. Ensure MobileSAM Weights exist
+        # Ensure MobileSAM Weights exist
         self._check_weights()
         
-        # 2. Load Helpers
+        # Load Helpers
         self.mp_helper = HolisticHelper()
         
-        # 3. Load MobileSAM
+        # Load MobileSAM
         print("Loading MobileSAM...")
         self.sam = sam_model_registry["vit_t"](checkpoint="mobile_sam.pt")
         self.sam.to(device=self.device)
         self.sam.eval()
         self.sam_predictor = SamPredictor(self.sam)
         
-        # 4. Load Diffusers/ControlNet
+        # Load Diffusers/ControlNet
         print("Loading ControlNet & Stable Diffusion...")
         self.controlnet = ControlNetModel.from_pretrained(
             "lllyasviel/control_v11p_sd15_openpose", 
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32
         )
 
-        # print("Loading Safety Checker...")
-        # self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-        #     "CompVis/stable-diffusion-safety-checker", 
-        #     torch_dtype=torch.float16
-        # )
-        # self.feature_extractor = CLIPImageProcessor.from_pretrained(
-        #     "openai/clip-vit-base-patch32"
-        # )
-
         self.pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             "Lykon/dreamshaper-8-inpainting", 
             controlnet=self.controlnet, 
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32, 
-            # safety_checker=self.safety_checker,
             safety_checker=None
-            # feature_extractor=self.feature_extractor
         ).to(self.device)
         self.pipe.scheduler = UniPCMultistepScheduler.from_config(self.pipe.scheduler.config)
         
@@ -132,11 +118,7 @@ class PoseCorrectionPipeline:
 
     def _check_weights(self):
         if not os.path.exists("mobile_sam.pt"):
-            print("Downloading MobileSAM weights...")
-            url = "https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt"
-            response = requests.get(url)
-            with open("mobile_sam.pt", "wb") as f:
-                f.write(response.content)
+            print("MobileSAM weights not found...")
 
     def _get_person_mask(self, image_np, keypoints):
         self.sam_predictor.set_image(image_np)
@@ -167,21 +149,21 @@ class PoseCorrectionPipeline:
         orig_w, orig_h: original width & height before padding/resizing
         """
 
-        # 1. compute original square size
+        # compute original square size
         max_dim = max(orig_w, orig_h)
 
-        # 2. scale factor to go from square → 512
+        # scale factor to go from square → 512
         scale_factor = 512 / max_dim
 
-        # 3. compute padding in original square
+        # compute padding in original square
         pad_x = (max_dim - orig_w) // 2
         pad_y = (max_dim - orig_h) // 2
 
-        # 4. scale padding
+        # scale padding
         scaled_pad_x = int(pad_x * scale_factor)
         scaled_pad_y = int(pad_y * scale_factor)
 
-        # 5. compute crop region in processed image
+        # compute crop region in processed image
         crop_left   = scaled_pad_x
         crop_top    = scaled_pad_y
         crop_right  = scaled_pad_x + int(orig_w * scale_factor)
@@ -189,7 +171,7 @@ class PoseCorrectionPipeline:
 
         cropped = processed_512.crop((crop_left, crop_top, crop_right, crop_bottom))
 
-        # 6. upscale back to original dimensions
+        # upscale back to original dimensions
         restored = cropped.resize((orig_w, orig_h), Image.LANCZOS)
 
         return restored
@@ -268,22 +250,22 @@ class PoseCorrectionPipeline:
         Maps a point (x, y) from original image space to the 512x512 
         centered-square space used by the model.
         """
-        # 1. Determine the square dimension (Logic from _make_square)
+        # Determine the square dimension 
         max_dim = max(orig_w, orig_h)
         
-        # 2. Calculate the Padding (Offset)
+        # Calculate the Offset
         # The image is pasted at these offsets
         pad_x = (max_dim - orig_w) // 2
         pad_y = (max_dim - orig_h) // 2
         
-        # 3. Apply Padding
+        # Apply Padding
         x_padded = x + pad_x
         y_padded = y + pad_y
         
-        # 4. Calculate Scale Factor
+        # Calculate Scale Factor
         scale = target_size / max_dim
         
-        # 5. Apply Scaling
+        # Apply Scaling
         x_new = x_padded * scale
         y_new = y_padded * scale
         
@@ -351,7 +333,7 @@ class PoseCorrectionPipeline:
         original_image = self._make_square(raw_image, 512)
         src_np = np.array(original_image)
         
-        # --- 2. Pose Detection ---
+        # --- Pose Detection ---
         mp_results, shape = self.mp_helper.process_image(original_image)
         kps_old = self.mp_helper.get_coco_keypoints(mp_results, shape)
         
@@ -389,26 +371,26 @@ class PoseCorrectionPipeline:
         dy = LEFT_HIP[1] - kps_old[11][1]
         LEFT_HIP_OFFSET = (axis_zero(dx), axis_zero(dy))
 
-        # RIGHT KNEE (14)
+        # RIGHT KNEE 
         dx = RIGHT_KNEE[0] - kps_old[14][0]; dy = RIGHT_KNEE[1] - kps_old[14][1]
         RIGHT_KNEE_OFFSET = (axis_zero(dx), axis_zero(dy))
 
-        # RIGHT ANKLE (16)
+        # RIGHT ANKLE 
         dx = RIGHT_ANKLE[0] - kps_old[16][0]; dy = RIGHT_ANKLE[1] - kps_old[16][1]
         RIGHT_ANKLE_OFFSET = (axis_zero(dx), axis_zero(dy))
 
-        # LEFT KNEE (13)
+        # LEFT KNEE 
         dx = LEFT_KNEE[0] - kps_old[13][0]; dy = LEFT_KNEE[1] - kps_old[13][1]
         LEFT_KNEE_OFFSET = (axis_zero(dx), axis_zero(dy))
 
-        # LEFT ANKLE (15)
+        # LEFT ANKLE 
         dx = LEFT_ANKLE[0] - kps_old[15][0]; dy = LEFT_ANKLE[1] - kps_old[15][1]
         LEFT_ANKLE_OFFSET = (axis_zero(dx), axis_zero(dy))
 
-        # --- 3. Segmentation ---
+        # --- Segmentation ---
         person_mask = self._get_person_mask(src_np, kps_old)
         
-        # --- 4. Modify Skeleton ---
+        # --- Modify Skeleton ---
         kps_new = kps_old.copy()
         redraw_right_hand = False
         redraw_left_hand = False
@@ -472,7 +454,7 @@ class PoseCorrectionPipeline:
         if redraw_left_hand:
             viz_skel_new = self._draw_synthetic_hand(viz_skel_new, kps_new[7][:2], kps_new[9][:2], scale_factor=1.1)
 
-        # --- 5. Prepare Masks & Warps ---
+        # --- Prepare Masks & Warps ---
         input_ai_composition = src_np.copy()
         final_inpaint_mask = np.zeros(shape[:2], dtype=np.uint8)
         
@@ -546,7 +528,7 @@ class PoseCorrectionPipeline:
             cv2.line(mask_old_limb_area, (int(kps_old[13][0]), int(kps_old[13][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
 
         # --- FILL: Sternum Sampling & Context Aware ---
-        # 1. Background Color
+        # Background Color
         safe_bg_mask = cv2.dilate(person_mask, np.ones((5,5), np.uint8), iterations=2)
         bg_mask = cv2.bitwise_not(safe_bg_mask)
         if np.count_nonzero(bg_mask) > 0:
@@ -555,7 +537,7 @@ class PoseCorrectionPipeline:
         else:
             bg_color = src_np[5, 5].tolist()
 
-        # 2. Torso Color (Sternum Sampling)
+        # Torso Color (Sternum Sampling)
         img_h, img_w = src_np.shape[:2]
         poly_pts = [np.array(kps_old[5][:2]), np.array(kps_old[6][:2]), 
                     np.array(kps_old[12][:2]), np.array(kps_old[11][:2])] # Sho -> Sho -> Hip -> Hip
@@ -588,12 +570,12 @@ class PoseCorrectionPipeline:
         else:
             torso_color = bg_color
 
-# 3. Apply Dual-Fill
-        # A. Limb overlapping Torso -> Fill with Shirt Color
+# Apply Dual-Fill
+        # Limb overlapping Torso -> Fill with Shirt Color
         mask_limb_over_body = cv2.bitwise_and(mask_old_limb_area, mask_torso_zone)
         input_ai_composition[mask_limb_over_body > 0] = torso_color
 
-        # B. Limb overlapping Background -> Fill with BG Color
+        # Limb overlapping Background -> Fill with BG Color
         mask_limb_over_bg = cv2.subtract(mask_old_limb_area, mask_torso_zone)
         input_ai_composition[mask_limb_over_bg > 0] = bg_color
 
@@ -634,7 +616,7 @@ class PoseCorrectionPipeline:
 
         final_inpaint_mask = cv2.dilate(final_inpaint_mask, np.ones((10,10), np.uint8), iterations=2)
 
-        # --- 6. Generation ---
+        # --- Generation ---
         control_map_img = Image.fromarray(viz_skel_new)
         # Fix BGR to RGB for control image
         r, g, b = control_map_img.split()

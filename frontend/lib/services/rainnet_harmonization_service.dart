@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -52,7 +50,6 @@ class RainnetHarmonizationService {
     } catch (e) {
       debugPrint("Rainnet init ERROR: $e");
       _initFailed = true;
-      // Do not rethrow, just mark as failed.
     }
   }
 
@@ -60,8 +57,6 @@ class RainnetHarmonizationService {
   // RUN HARMONIZATION
   // ===========================================================
 
-  /// [compositeImage] is the full image with the object pasted on it.
-  /// [maskImage] is the full image mask (white = object, black = background).
   Future<Uint8List?> harmonize(img.Image compositeImage, img.Image maskImage) async {
     if (!_isInitialized && !_initFailed) await initialize();
 
@@ -73,7 +68,6 @@ class RainnetHarmonizationService {
     final T0 = DateTime.now();
 
     try {
-      // 1. Find Bounding Box of Mask
       int minX = maskImage.width;
       int minY = maskImage.height;
       int maxX = 0;
@@ -83,7 +77,6 @@ class RainnetHarmonizationService {
       for (int y = 0; y < maskImage.height; y++) {
         for (int x = 0; x < maskImage.width; x++) {
           final pixel = maskImage.getPixel(x, y);
-          // Check red channel (assuming grayscale/white mask)
           if (pixel.r > 128) { 
             if (x < minX) minX = x;
             if (x > maxX) maxX = x;
@@ -99,8 +92,6 @@ class RainnetHarmonizationService {
         return Uint8List.fromList(img.encodePng(compositeImage));
       }
 
-      // 2. Expand Bounding Box (Context)
-      // Add padding to give the model context
       final padding = 50; 
       minX = (minX - padding).clamp(0, maskImage.width - 1);
       minY = (minY - padding).clamp(0, maskImage.height - 1);
@@ -110,11 +101,9 @@ class RainnetHarmonizationService {
       final cropW = maxX - minX + 1;
       final cropH = maxY - minY + 1;
 
-      // 3. Crop
       final cropImg = img.copyCrop(compositeImage, x: minX, y: minY, width: cropW, height: cropH);
       final cropMask = img.copyCrop(maskImage, x: minX, y: minY, width: cropW, height: cropH);
 
-      // 4. Resize to Model Input Size (512x512)
       final resizedImg = img.copyResize(
         cropImg,
         width: _inputSize,
@@ -129,7 +118,6 @@ class RainnetHarmonizationService {
         interpolation: img.Interpolation.linear,
       );
 
-      // ---- Build NCHW Input ----
       final imageTensor = Float32List(1 * 3 * _inputSize * _inputSize);
       final maskTensor = Float32List(1 * 1 * _inputSize * _inputSize);
 
@@ -146,7 +134,6 @@ class RainnetHarmonizationService {
           imageTensor[idx(1, y, x)] = px.g / 255.0;
           imageTensor[idx(2, y, x)] = px.b / 255.0;
 
-          // Mask is single channel
           maskTensor[y * _inputSize + x] = mx.r / 255.0;
         }
       }
@@ -159,7 +146,6 @@ class RainnetHarmonizationService {
 
       final runOpts = OrtRunOptions();
 
-      // ---- Dynamic Input Names ----
       final inputs = _session!.inputNames;
       final imgName = inputs.firstWhere(
         (e) => e.toLowerCase().contains("img") || e.toLowerCase().contains("image") || e.toLowerCase().contains("input"),
@@ -170,7 +156,6 @@ class RainnetHarmonizationService {
         orElse: () => inputs.length > 1 ? inputs[1] : inputs[0],
       );
 
-      // ---- Run Model ----
       final outputs = _session!.run(runOpts, {
         imgName: ortImg,
         maskName: ortMask,
@@ -220,7 +205,6 @@ class RainnetHarmonizationService {
         o?.release();
       }
 
-      // 5. Resize Output back to Crop Size
       final restoredCrop = img.copyResize(
         outImg,
         width: cropW,
@@ -228,21 +212,17 @@ class RainnetHarmonizationService {
         interpolation: img.Interpolation.linear,
       );
 
-      // 6. Paste back with Blending
-      // Use the original mask (cropped) for high-quality alpha blending
       for (int y = 0; y < cropH; y++) {
         for (int x = 0; x < cropW; x++) {
           final globalX = minX + x;
           final globalY = minY + y;
           
-          // Get mask value from original mask
           final maskVal = maskImage.getPixel(globalX, globalY).r / 255.0;
           
           if (maskVal > 0.01) {
             final newPx = restoredCrop.getPixel(x, y);
             final oldPx = compositeImage.getPixel(globalX, globalY);
             
-            // Alpha blend: New * Mask + Old * (1 - Mask)
             final r = (newPx.r * maskVal + oldPx.r * (1 - maskVal)).round();
             final g = (newPx.g * maskVal + oldPx.g * (1 - maskVal)).round();
             final b = (newPx.b * maskVal + oldPx.b * (1 - maskVal)).round();
