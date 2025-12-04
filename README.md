@@ -94,7 +94,7 @@ aurora/
 ### 📱 Mobile/Desktop Application Flow
 
 **1. Launch Application**
-   - Open the Apex image editing application
+   - Open the Aurora image editing application
    - Application loads available editing tools
 
 **2. Image Selection**
