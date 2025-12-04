@@ -1,7 +1,3 @@
-# #hardware config
-# device: "cuda"
-# dtype: "float16"      # use float32 for CPU
-
 #object/rendering Configuration
 target_resolution: 512
 background_color: 1.0
