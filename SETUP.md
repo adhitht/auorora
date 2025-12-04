@@ -13,7 +13,7 @@
    ```bash
    python -m venv venv
 
-   # Activate the created environment map
+   # Activate the created virtual environment 
    # On Windows
    venv\Scripts\activate
    # On macOS/Linux

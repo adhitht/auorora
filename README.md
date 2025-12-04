@@ -28,7 +28,7 @@ aurora/
 ├── SETUP.md                  # Setup instructions
 ├── THIRD_PARTY_LICENSES      # Third party license information
 ├── init.sh                   # Initialization script
-├── .gitmodules              # Git submodules configuration
+├── .python-version          # Python version specification
 ├── protos/                  # Protocol Buffer definitions
 │   ├── pose.proto          # Pose service definitions
 │   └── relighting.proto    # Relighting service definitions
@@ -45,7 +45,8 @@ aurora/
 │   │   ├── __init__.py
 │   │   ├── pose_change.py # Pose correction pipeline
 │   │   ├── relighting.py  # Relighting pipeline
-│   │   ├── movenet_lightning.tflite
+│   │   ├── mobile_sam.pt  # Mobile SAM model weights
+│   │   ├── movenet_lightning.tflite  # MoveNet pose detection model
 │   │   └── relighting/    # Relighting model resources
 │   │       ├── config.py
 │   │       ├── config.yaml
@@ -54,9 +55,9 @@ aurora/
 │   │       ├── run_relight.py
 │   │       ├── upscaler.py
 │   │       ├── downloads.sh
-│   │       ├── env_map/
-│   │       ├── realesrgan/
-│   │       └── src/
+│   │       ├── env_map/   # Environment maps for relighting
+│   │       ├── realesrgan/ # Real-ESRGAN upscaler
+│   │       └── src/       # Source code for relighting pipeline
 │   └── model/             # Data models
 │       ├── __init__.py
 │       └── lights_model.py # Light configuration models
@@ -128,9 +129,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
    <summary><b>Pose & Reframe Tool</b></summary>
    
    - Choose the object/subject to be edited
-   - Adjust pose landmarks by dragging points
-   - Select region and drag to move
-   - Preview changes in real-time
+   - Adjust pose landmarks (joints) by dragging points
    - Confirm and apply changes
    </details>
 
@@ -140,15 +139,14 @@ Refer to `SETUP.md` [here](./SETUP.md).
    - Choose the object to be relit
    - Select light positions and intensity
    - Adjust color temperature
-   - Preview relit image
-   - Apply changes
+   - Confirm and apply changes
    </details>
 
 **5. Processing**
    - Frontend sends request to backend via gRPC
    - Backend processes image using appropriate ML model
-   - Processed image returned to frontend
-   - Result displayed with before/after comparison
+   - Processed image is returned to frontend
+   - Result displayed 
 
 **6. Edit History**
    - Maintain edit history for undo/redo
@@ -157,7 +155,6 @@ Refer to `SETUP.md` [here](./SETUP.md).
 **7. Export**
    - Save edited image to device storage
    - Share to social media or messaging apps
-   - Save as project for later editing
 
 ### Backend Processing Pipeline
 
