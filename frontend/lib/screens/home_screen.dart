@@ -6,8 +6,8 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../services/photo_picker_service.dart';
 import '../theme/liquid_glass_theme.dart';
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+// ignore: depend_on_referenced_packages
 import 'package:path/path.dart' as path;
 import 'editor_screen.dart';
 
@@ -36,14 +36,21 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('Manifest content loaded: ${manifestContent.length} chars');
       final Map<String, dynamic> manifestMap = json.decode(manifestContent);
       debugPrint('Manifest keys: ${manifestMap.keys.length}');
-      
+
       final demoAssets = manifestMap.keys
-            .where((String key) => key.startsWith('assets/demo/') && 
-                (key.endsWith('.jpg') || key.endsWith('.jpeg') || key.endsWith('.png')))
-            .toList();
-      
+          .where(
+            (String key) =>
+                key.startsWith('assets/demo/') &&
+                (key.endsWith('.jpg') ||
+                    key.endsWith('.jpeg') ||
+                    key.endsWith('.png')),
+          )
+          .toList();
+
       debugPrint('Found demo assets: ${demoAssets.length}');
-      demoAssets.forEach((asset) => debugPrint('Demo asset: $asset'));
+      for (var asset in demoAssets) {
+        debugPrint('Demo asset: $asset');
+      }
 
       setState(() {
         _demoAssets = demoAssets;
@@ -59,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/${path.basename(assetPath)}');
       await tempFile.writeAsBytes(byteData.buffer.asUint8List());
-      
+
       if (!mounted) return;
       _openEditor(tempFile);
     } catch (e) {
@@ -152,24 +159,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final assetPath = _demoAssets[index];
-                              return _PhotoTile(
-                                key: ValueKey(assetPath),
-                                imageProvider: AssetImage(assetPath),
-                                onTap: () => _loadAssetAsFile(assetPath),
-                                onLongPress: () {},
-                                isLocal: false,
-                              );
-                            },
-                            childCount: _demoAssets.length,
-                          ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 4,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final assetPath = _demoAssets[index];
+                            return _PhotoTile(
+                              key: ValueKey(assetPath),
+                              imageProvider: AssetImage(assetPath),
+                              onTap: () => _loadAssetAsFile(assetPath),
+                              onLongPress: () {},
+                              isLocal: false,
+                            );
+                          }, childCount: _demoAssets.length),
                         ),
                       ),
                       const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -192,26 +200,27 @@ class _HomeScreenState extends State<HomeScreen> {
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              return _PhotoTile(
-                                key: ValueKey(_photos[index].path),
-                                imageProvider: FileImage(_photos[index]),
-                                onTap: () => _openEditor(_photos[index]),
-                                onLongPress: () {
-                                  HapticFeedback.heavyImpact();
-                                  _showDeleteDialog(context, index);
-                                },
-                                isLocal: true,
-                              );
-                            },
-                            childCount: _photos.length,
-                          ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 4,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                              ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            return _PhotoTile(
+                              key: ValueKey(_photos[index].path),
+                              imageProvider: FileImage(_photos[index]),
+                              onTap: () => _openEditor(_photos[index]),
+                              onLongPress: () {
+                                HapticFeedback.heavyImpact();
+                                _showDeleteDialog(context, index);
+                              },
+                              isLocal: true,
+                            );
+                          }, childCount: _photos.length),
                         ),
                       ),
                     ] else if (_demoAssets.isEmpty) ...[
@@ -269,7 +278,7 @@ class _PhotoTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final bool isLocal;
-  final String? label;
+  // final String? label;
 
   const _PhotoTile({
     super.key,
@@ -277,7 +286,6 @@ class _PhotoTile extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     this.isLocal = true,
-    this.label,
   });
 
   @override
@@ -307,33 +315,33 @@ class _PhotoTile extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   Image(image: imageProvider, fit: BoxFit.cover),
-                  if (label != null)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 0.5,
-                          ),
-                        ),
-                        child: Text(
-                          label!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
+                  // if (label != null)
+                  //   Positioned(
+                  //     top: 4,
+                  //     right: 4,
+                  //     child: Container(
+                  //       padding: const EdgeInsets.symmetric(
+                  //         horizontal: 6,
+                  //         vertical: 2,
+                  //       ),
+                  //       decoration: BoxDecoration(
+                  //         color: Colors.black.withOpacity(0.6),
+                  //         borderRadius: BorderRadius.circular(8),
+                  //         border: Border.all(
+                  //           color: Colors.white.withOpacity(0.2),
+                  //           width: 0.5,
+                  //         ),
+                  //       ),
+                  //       child: Text(
+                  //         label!,
+                  //         style: const TextStyle(
+                  //           color: Colors.white,
+                  //           fontSize: 8,
+                  //           fontWeight: FontWeight.w600,
+                  //         ),
+                  //       ),
+                  //     ),
+                  //   ),
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(

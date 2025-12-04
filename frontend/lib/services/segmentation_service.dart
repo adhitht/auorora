@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
@@ -123,7 +122,7 @@ class SegmentationService {
       _originalHeight = _cachedImage!.height;
 
       debugPrint(
-        'MagicTouch: Image loaded ${_originalWidth}x${_originalHeight}',
+        'MagicTouch: Image loaded ${_originalWidth}x$_originalHeight',
       );
 
       _cachedMask = null;
@@ -145,9 +144,6 @@ class SegmentationService {
         'MagicTouch: Image prepared in ${endTime.difference(startTime).inMilliseconds}ms',
       );
 
-      // Auto-segmentation removed to allow user tap selection
-      // debugPrint('MagicTouch: Auto-segmenting center object...');
-      // await getMaskForPoint(_originalWidth / 2.0, _originalHeight / 2.0);
     } catch (e) {
       debugPrint('Error encoding image: $e');
       rethrow;
@@ -295,14 +291,16 @@ class SegmentationService {
   dynamic _createDefaultInput(List<int> shape) {
     if (shape.isEmpty) return 0.0;
     if (shape.length == 1) return List.filled(shape[0], 0.0);
-    if (shape.length == 2)
+    if (shape.length == 2) {
       return List.generate(shape[0], (_) => List.filled(shape[1], 0.0));
-    if (shape.length == 3)
+    }
+    if (shape.length == 3) {
       return List.generate(
         shape[0],
         (_) => List.generate(shape[1], (_) => List.filled(shape[2], 0.0)),
       );
-    if (shape.length == 4)
+    }
+    if (shape.length == 4) {
       return List.generate(
         shape[0],
         (_) => List.generate(
@@ -310,20 +308,23 @@ class SegmentationService {
           (_) => List.generate(shape[2], (_) => List.filled(shape[3], 0.0)),
         ),
       );
+    }
     return 0.0;
   }
 
   dynamic _createOutputBuffer(List<int> shape) {
     if (shape.isEmpty) return 0.0;
     if (shape.length == 1) return List.filled(shape[0], 0.0);
-    if (shape.length == 2)
+    if (shape.length == 2) {
       return List.generate(shape[0], (_) => List.filled(shape[1], 0.0));
-    if (shape.length == 3)
+    }
+    if (shape.length == 3) {
       return List.generate(
         shape[0],
         (_) => List.generate(shape[1], (_) => List.filled(shape[2], 0.0)),
       );
-    if (shape.length == 4)
+    }
+    if (shape.length == 4) {
       return List.generate(
         shape[0],
         (_) => List.generate(
@@ -331,6 +332,7 @@ class SegmentationService {
           (_) => List.generate(shape[2], (_) => List.filled(shape[3], 0.0)),
         ),
       );
+    }
     return List.filled(1, 0.0);
   }
 
@@ -364,7 +366,6 @@ class SegmentationService {
             }
 
             // Soft masking: Map probability 0.0-1.0 to 0-255
-            // We still clip very low values to keep the background clean
             if (val < 0.1) {
               mask[y * w + x] = 0;
             } else {
@@ -414,7 +415,7 @@ class SegmentationService {
 
       final oriented = img.bakeOrientation(image);
       debugPrint(
-        'createCutout: Image ${oriented.width}x${oriented.height}, Mask ${_maskWidth}x${_maskHeight}',
+        'createCutout: Image ${oriented.width}x${oriented.height}, Mask ${_maskWidth}x$_maskHeight',
       );
 
       final double scaleX = _maskWidth.toDouble() / oriented.width.toDouble();
@@ -458,7 +459,7 @@ class SegmentationService {
       final width = maxX - minX + 1;
       final height = maxY - minY + 1;
 
-      debugPrint('createCutout: Creating cutout of size ${width}x${height}');
+      debugPrint('createCutout: Creating cutout of size ${width}x$height');
 
       final cutout = img.Image(width: width, height: height, numChannels: 4);
 

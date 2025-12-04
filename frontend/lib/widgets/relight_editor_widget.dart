@@ -5,7 +5,6 @@ import 'dart:ui' as ui;
 
 import 'package:aurora/services/relighting_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:path_provider/path_provider.dart';
@@ -79,7 +78,7 @@ class RelightEditorWidget extends StatefulWidget {
 class RelightEditorWidgetState extends State<RelightEditorWidget>
     with TickerProviderStateMixin {
   bool _isProcessing = false;
-  bool _isInitializing = true; // Add initializing state
+  bool _isInitializing = true;
 
   late AnimationController _panelAnimationController;
   late Animation<double> _panelAnimation;
@@ -87,13 +86,10 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
 
   RelightMode _currentMode = RelightMode.relight;
 
-  // Segmentation
-  // Remove local instantiation
   bool _isSegmentationActive = false;
   bool _isSegmenting = false;
   ui.Image? _maskImage;
 
-  // Adjustment values
   final Map<RelightTool, double> _values = {
     RelightTool.exposure: 0.0,
     RelightTool.contrast: 0.0,
@@ -137,7 +133,6 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     
     if (widget.controller != null) {
       widget.controller!.addListener(_onControllerChanged);
-      // Initialize with controller strokes if any
       if (widget.controller!.strokes.isNotEmpty) {
         _lightPaintStrokes = List.from(widget.controller!.strokes);
       }
@@ -322,19 +317,16 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
         canvas.drawImage(originalImage, Offset.zero, paint);
       }
 
-      // Draw Light Paint Strokes
       if (_lightPaintStrokes.isNotEmpty) {
         for (final stroke in _lightPaintStrokes) {
           if (stroke.points.isEmpty) continue;
 
           if (stroke.type == LightPaintType.spot) {
-            // Draw Spot
             final center = Offset(
               stroke.points.first.dx * originalImage.width,
               stroke.points.first.dy * originalImage.height,
             );
 
-            // Outer glow
             final glowPaint = Paint()
               ..color = stroke.color.withOpacity(stroke.brightness * 0.6)
               ..style = PaintingStyle.fill
@@ -346,7 +338,6 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
               glowPaint,
             );
 
-            // Core
             final corePaint = Paint()
               ..color = Colors.white.withOpacity(0.9)
               ..style = PaintingStyle.fill
@@ -358,20 +349,19 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
               corePaint,
             );
           } else {
-            // Draw Brush Stroke
             final paint = Paint()
               ..color = stroke.color.withOpacity(stroke.brightness)
               ..strokeWidth =
                   stroke.width *
                   (originalImage.width /
-                      1000.0) // Scale width relative to image size
+                      1000.0)
               ..strokeCap = StrokeCap.round
               ..strokeJoin = StrokeJoin.round
               ..style = PaintingStyle.stroke
               ..maskFilter = const MaskFilter.blur(
                 BlurStyle.normal,
                 10,
-              ); // Glow effect
+              );
 
             final path = Path();
             final firstPoint = Offset(
@@ -389,7 +379,6 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
             }
             canvas.drawPath(path, paint);
 
-            // Draw core
             final corePaint = Paint()
               ..color = Colors.white.withOpacity(stroke.brightness * 0.8)
               ..strokeWidth =
@@ -833,8 +822,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     double aspectRatio,
   ) async {
     // Allow tap if in segmentation mode OR if in Light Paint selection mode
-    if ((!_isSegmentationActive && !_isLightPaintSelecting) || _isSegmenting)
+    if ((!_isSegmentationActive && !_isLightPaintSelecting) || _isSegmenting) {
       return;
+    }
 
     setState(() => _isSegmenting = true);
 

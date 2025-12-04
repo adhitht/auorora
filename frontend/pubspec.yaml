@@ -50,6 +50,8 @@ dependencies:
   flutter_svg: ^2.0.10
   fllama: ^0.0.1
 
+  protobuf: any
+  path: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -65,14 +65,15 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   double _width = 0;
 
   final LlmService _llmService = LlmService();
-  late final SuggestionsService _suggestionsService = SuggestionsService(_llmService);
+  late final SuggestionsService _suggestionsService = SuggestionsService(
+    _llmService,
+  );
   List<String> _currentSuggestions = [];
   bool _isLoadingSuggestions = false;
-  bool _isTyping = false;
   final TextEditingController _chatController = TextEditingController();
   final SemanticRouterService _semanticRouterService = SemanticRouterService();
   final PipelineExecutor _pipelineExecutor = PipelineExecutor();
-  
+
   Timer? _actionTimer;
   bool _isActionPending = false;
   int _countdownSeconds = 0;
@@ -82,8 +83,10 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     _isLoadingSuggestions = true;
     if (mounted) setState(() {});
 
-    final suggestions = await _suggestionsService.generateSuggestions(widget.detectedTags);
-    
+    final suggestions = await _suggestionsService.generateSuggestions(
+      widget.detectedTags,
+    );
+
     if (mounted) {
       setState(() {
         if (widget.dismissedSuggestions != null) {
@@ -101,7 +104,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   @override
   void didUpdateWidget(EditorBottomBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.detectedTags != oldWidget.detectedTags || 
+    if (widget.detectedTags != oldWidget.detectedTags ||
         widget.dismissedSuggestions != oldWidget.dismissedSuggestions) {
       _loadSuggestions();
     }
@@ -120,9 +123,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateHighlight());
     _loadSuggestions();
     _chatController.addListener(() {
-      setState(() {
-        _isTyping = _chatController.text.isNotEmpty;
-      });
+      setState(() {});
     });
   }
 
@@ -133,8 +134,6 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     _semanticRouterService.dispose();
     super.dispose();
   }
-
-
 
   int _getHoverIndex(double dragX) {
     final stackBox = _stackKey.currentContext!.findRenderObject() as RenderBox;
@@ -247,13 +246,17 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                       shape: LiquidRoundedSuperellipse(borderRadius: 16),
                       child: Container(
                         width: 120, // Fixed width for skeleton
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              width: 0.5),
+                            color: Colors.white.withValues(alpha: 0.1),
+                            width: 0.5,
+                          ),
                         ),
                         child: Center(
                           child: Container(
@@ -294,18 +297,23 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                         shape: LiquidRoundedSuperellipse(borderRadius: 16),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                width: 0.5),
+                              color: Colors.white.withValues(alpha: 0.2),
+                              width: 0.5,
+                            ),
                           ),
                           child: Text(
                             _currentSuggestions[index],
                             style: GoogleFonts.roboto(
-                                color: Colors.white, fontSize: 12),
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),
@@ -338,8 +346,11 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                         width: 1.5,
                       ),
                     ),
-                    child: const Icon(CupertinoIcons.mic,
-                        color: Colors.white, size: 24),
+                    child: const Icon(
+                      CupertinoIcons.mic,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                 ),
               ),
@@ -373,12 +384,15 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                             child: TextField(
                               controller: _chatController,
                               style: GoogleFonts.roboto(
-                                  color: Colors.white, fontSize: 16),
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
                               decoration: InputDecoration(
                                 hintText: "Type Prompt",
                                 hintStyle: GoogleFonts.roboto(
-                                    color: Colors.white.withValues(alpha: 0.4),
-                                    fontSize: 16),
+                                  color: Colors.white.withValues(alpha: 0.4),
+                                  fontSize: 16,
+                                ),
                                 border: InputBorder.none,
                                 isDense: true,
                                 contentPadding: EdgeInsets.zero,
@@ -401,12 +415,17 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                                     color: LiquidGlassTheme.primary,
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
                                       width: 1.0,
                                     ),
                                   ),
-                                  child: const Icon(CupertinoIcons.arrow_up,
-                                      color: Colors.white, size: 20),
+                                  child: const Icon(
+                                    CupertinoIcons.arrow_up,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
                             ),
@@ -436,10 +455,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
       child: const SizedBox(
         width: 16,
         height: 16,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: Colors.white,
-        ),
+        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
       ),
       duration: Duration.zero, // Keep until replaced
     );
@@ -449,17 +465,16 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
       final actionStr = command['action'] as String?;
       final rawOutput = command['raw_output'] as String? ?? 'No output';
       final error = command['error'] as String?;
-      
-      String message = 'Action: $actionStr\nRaw: $rawOutput';
+
       if (error != null) {
-        message += '\nError: $error';
+        debugPrint(error);
       }
-      
+
       debugPrint('DEBUG: Action determined: $actionStr');
       debugPrint('DEBUG: Raw output: $rawOutput');
 
       await Future.delayed(const Duration(seconds: 2));
-      
+
       EditorAction action;
       if (actionStr == 'relight') {
         action = EditorAction.relight;
@@ -470,7 +485,6 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
       }
 
       if (action == EditorAction.diffusion) {
-        // TODO: Integrate with diffusion model
         if (mounted) {
           widget.notificationService.show(
             'Sending to Diffusion Model...',
@@ -488,7 +502,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
       });
 
       final actionName = action == EditorAction.relight ? 'Relight' : 'Reframe';
-      
+
       widget.notificationService.show(
         'Starting $actionName in $_countdownSeconds...',
         type: NotificationType.info,
@@ -511,7 +525,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         if (_countdownSeconds <= 0) {
           timer.cancel();
           setState(() => _isActionPending = false);
-          
+
           if (action == EditorAction.relight) {
             widget.toolCallbacks[EditorTool.relight]?.call();
             Future.delayed(const Duration(milliseconds: 500), () {
@@ -527,9 +541,9 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     } catch (e) {
       debugPrint('Error routing prompt: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error analyzing prompt: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error analyzing prompt: $e')));
       }
     }
   }
@@ -579,7 +593,8 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                             key: _keys[index],
                             iconPath: widget.tools[index].iconPath,
                             label: widget.tools[index].label,
-                            isSelected: widget.selectedTool == widget.tools[index],
+                            isSelected:
+                                widget.selectedTool == widget.tools[index],
                             onTap: () => _select(index),
                           ),
                         ),
@@ -612,7 +627,8 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
 
                             int hoverIndex = _getHoverIndex(_dragX);
 
-                            if (hoverIndex != -1 && hoverIndex != _lastHoverIndex) {
+                            if (hoverIndex != -1 &&
+                                hoverIndex != _lastHoverIndex) {
                               _lastHoverIndex = hoverIndex;
                               HapticFeedback.selectionClick();
                             }
@@ -633,16 +649,24 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                             child: LiquidStretch(
                               stretch: _isMoving ? 3.0 : 1.2,
                               child: LiquidGlass(
-                                shape: LiquidRoundedSuperellipse(borderRadius: 50),
+                                shape: LiquidRoundedSuperellipse(
+                                  borderRadius: 50,
+                                ),
                                 child: GlassGlow(
                                   glowRadius: _isMoving ? 2 : 1.4,
-                                  glowColor: Colors.white.withValues(alpha: 0.12),
+                                  glowColor: Colors.white.withValues(
+                                    alpha: 0.12,
+                                  ),
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.08),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.08,
+                                      ),
                                       borderRadius: BorderRadius.circular(50),
                                       border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.15),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.15,
+                                        ),
                                         width: 0.4,
                                       ),
                                     ),
@@ -719,4 +743,3 @@ class _ToolButton extends StatelessWidget {
     );
   }
 }
-

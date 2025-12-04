@@ -23,8 +23,6 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
   @override
   void initState() {
     super.initState();
-    // Initialize thumb position based on initial color (approximate)
-    // For simplicity, we'll start at 0 or try to map HSV hue
     final HSVColor hsv = HSVColor.fromColor(widget.color);
     _thumbPosition = hsv.hue / 360.0;
   }
@@ -34,9 +32,6 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.color != widget.color) {
       final HSVColor hsv = HSVColor.fromColor(widget.color);
-      // Only update position if the color change implies a significant hue change
-      // This prevents jitter when dragging if we were to reverse-map continuously
-      // But for now, let's trust the drag to control position.
     }
   }
 
@@ -45,13 +40,11 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
       _thumbPosition = position.clamp(0.0, 1.0);
     });
 
-    // First 10% is white
     if (_thumbPosition < 0.1) {
       widget.onColorChanged(Colors.white);
       return;
     }
 
-    // Remap remaining 90% to 0-360 hue
     final double huePosition = (_thumbPosition - 0.1) / 0.9;
     final double hue = huePosition * 360.0;
     final Color newColor = HSVColor.fromAHSV(1.0, hue, 1.0, 1.0).toColor();

@@ -205,7 +205,6 @@ class _AnimatedMenu extends StatefulWidget {
 class _AnimatedMenuState extends State<_AnimatedMenu>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
   late Animation<double> _widthAnimation;
   late Animation<double> _heightAnimation;
@@ -224,12 +223,6 @@ class _AnimatedMenuState extends State<_AnimatedMenu>
       curve: Curves.elasticOut,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
-    );
 
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(

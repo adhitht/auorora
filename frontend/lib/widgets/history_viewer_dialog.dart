@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../models/edit_history.dart';
 import '../services/edit_history_manager.dart';
-import '../theme/liquid_glass_theme.dart';
 
 class HistoryViewerDialog extends StatefulWidget {
   final EditHistoryManager historyManager;
@@ -210,26 +209,7 @@ class _HistoryEntryTile extends StatelessWidget {
           ? time.hour - 12
           : (time.hour == 0 ? 12 : time.hour);
       final amPm = time.hour >= 12 ? 'PM' : 'AM';
-      return '${time.month}/${time.day} ${hour}:${time.minute.toString().padLeft(2, '0')} $amPm';
-    }
-  }
-
-  IconData _getIconForType(EditType type) {
-    switch (type) {
-      case EditType.crop:
-        return Icons.crop;
-      case EditType.relight:
-        return Icons.wb_sunny;
-      case EditType.reframe:
-        return Icons.aspect_ratio;
-      case EditType.filter:
-        return Icons.filter;
-      case EditType.rotate:
-        return Icons.rotate_right;
-      case EditType.flip:
-        return Icons.flip;
-      case EditType.initial:
-        return Icons.image;
+      return '${time.month}/${time.day} $hour:${time.minute.toString().padLeft(2, '0')} $amPm';
     }
   }
 
@@ -243,9 +223,7 @@ class _HistoryEntryTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isCurrent
-                ? Colors.white
-                : Colors.transparent,
+            color: isCurrent ? Colors.white : Colors.transparent,
             width: 2,
           ),
         ),
@@ -320,7 +298,7 @@ class _HistoryEntryTile extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               // Current Indicator (optional, maybe just border is enough)
               if (isCurrent)
                 Positioned(

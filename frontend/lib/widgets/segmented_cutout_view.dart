@@ -62,7 +62,6 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
       CurvedAnimation(parent: _flowController, curve: Curves.easeOutQuart),
     );
 
-    // Start flow after a slight delay to let the pop-in finish
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _flowController.forward();
     });
@@ -78,7 +77,6 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
 
   @override
   Widget build(BuildContext context) {
-    // Removed ScaleTransition to keep the cutout exactly in place
     return FadeTransition(
       opacity: _opacityAnimation,
       child: AnimatedBuilder(
@@ -109,7 +107,6 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
                 ),
               ),
 
-              // 2. The Image itself
               Image.memory(
                 widget.imageBytes,
                 fit: BoxFit.fill,
@@ -117,13 +114,9 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
                 colorBlendMode: BlendMode.srcATop,
               ),
 
-              // 3. Scanning Light Effect
-              // Only show while animating to prevent any residual artifacts
               if (!_flowController.isCompleted)
                 Positioned.fill(
                   child: Opacity(
-                    // Fade in and out based on progress (Bell curve-ish)
-                    // 0.0 -> 0.0, 0.5 -> 1.0, 1.0 -> 0.0
                     opacity: (1.0 - (2 * _flowAnimation.value - 1.0).abs())
                         .clamp(0.0, 1.0),
                     child: ShaderMask(
@@ -139,9 +132,9 @@ class _SegmentedCutoutViewState extends State<SegmentedCutoutView>
                           ),
                           colors: [
                             Colors.transparent,
-                            Colors.white.withOpacity(0.1), // Faint glow
-                            Colors.white.withOpacity(0.5), // Sharp highlight
-                            Colors.white.withOpacity(0.1), // Faint glow
+                            Colors.white.withOpacity(0.1),
+                            Colors.white.withOpacity(0.5),
+                            Colors.white.withOpacity(0.1),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 0.45, 0.5, 0.55, 1.0],

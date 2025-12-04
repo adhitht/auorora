@@ -2,10 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 
 import 'package:aurora/widgets/glass_button.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
@@ -30,7 +28,7 @@ enum ReframeMode { initial, segmenting, segmented, moving, posing }
 
 class ReframeEditorWidget extends StatefulWidget {
   final File imageFile;
-  final SegmentationService segmentationService; // Add parameter
+  final SegmentationService segmentationService;
   final VoidCallback onCancel;
   final Function(File reframedFile) onApply;
   final Function(String message, bool isSuccess)? onShowMessage;
@@ -39,7 +37,7 @@ class ReframeEditorWidget extends StatefulWidget {
   const ReframeEditorWidget({
     super.key,
     required this.imageFile,
-    required this.segmentationService, // Add required parameter
+    required this.segmentationService,
     required this.onCancel,
     required this.onApply,
     this.onShowMessage,
@@ -53,7 +51,7 @@ class ReframeEditorWidget extends StatefulWidget {
 class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   bool _isProcessing = false;
   bool _isPoseDetecting = false;
-  bool _isSegmentationRunning = false;
+  final bool _isSegmentationRunning = false;
   Size? _imageSize;
 
   ReframeMode _mode = ReframeMode.initial;
@@ -71,7 +69,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
   bool _isPoseServiceInitialized = false;
 
-  bool _isMagicMoveEnabled = true;
+  final bool _isMagicMoveEnabled = true;
   Uint8List? _cleanBackgroundBytes;
 
   ui.Image? _feedbackMaskImage;
@@ -94,7 +92,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   }
 
   Future<void> _initializeServices() async {
-    // Delay initialization to allow screen to load first
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
@@ -109,7 +106,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       debugPrint('Failed to initialize pose service: $e');
     }
 
-    // Segmentation initialization handled by parent
 
     try {
       await _inpaintingService.initialize();
@@ -362,8 +358,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       }
     }
 
-    debugPrint("POSE CHANGINE JSON: " + json.encode(jsonMap));
-
     return utf8.encode(json.encode(jsonMap));
   }
 
@@ -409,7 +403,6 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
         return;
       }
 
-      // local cutout?
       if (_cutoutResult != null && _mode == ReframeMode.moving) {
         img.Image? image;
 
@@ -440,17 +433,12 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
               dstY: targetY,
             );
 
-            // ---- HARMONIZATION ----
-            // Create a mask for the cutout at the new position
             final fullMask = img.Image(
               width: image.width,
               height: image.height,
             );
-            // Fill with black (0)
             img.fill(fullMask, color: img.ColorRgb8(0, 0, 0));
 
-            // Draw the cutout shape (white) onto the mask
-            // We can use the alpha channel of cutoutImage to determine the mask
             for (int y = 0; y < cutoutImage.height; y++) {
               for (int x = 0; x < cutoutImage.width; x++) {
                 final pixel = cutoutImage.getPixel(x, y);

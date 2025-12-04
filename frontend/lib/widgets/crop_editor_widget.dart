@@ -1,11 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:aurora/widgets/glass_button.dart';
-import 'package:aurora/widgets/tool_button.dart';
 import 'package:crop_image/crop_image.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
@@ -50,10 +47,8 @@ class CropEditorWidgetState extends State<CropEditorWidget> {
   void initState() {
     super.initState();
     _cropController = CropController(aspectRatio: null, rotation: _rotation);
-    // Initialize with a nice default crop rect
     _cropController.crop = const Rect.fromLTRB(0.05, 0.05, 0.95, 0.95);
 
-    // Notify parent that control panel is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onControlPanelReady?.call(buildCropOptionsBar);
     });
@@ -73,30 +68,15 @@ class CropEditorWidgetState extends State<CropEditorWidget> {
     });
 
     try {
-      // Get the cropped bitmap (this handles rotation and crop rect)
-      // Note: crop_image might not handle the Transform widget flip automatically
-      // if it operates on the original image bytes.
-      // However, for now we assume visual consistency or we might need to post-process flip.
       final ui.Image croppedUiImage = await _cropController.croppedBitmap(
         maxSize: 4096,
       );
-
-      // If we have flips, we might need to flip the result
-      // But wait, if we flipped the VIEW, the crop rect is relative to the flipped view.
-      // If crop_image applies crop rect to ORIGINAL image, the crop will be wrong.
-      // Correct approach for flip with crop_image usually requires post-processing
-      // or pre-processing.
-      // Given the complexity, let's try to handle flip by flipping the result if needed,
-      // BUT we also need to adjust the crop rect if we flipped?
-      // Actually, let's assume for this iteration we just save the crop.
-      // If flip is visual only, we need to apply it to the result.
 
       ui.Image finalImage = croppedUiImage;
       if (_flipX || _flipY) {
         final recorder = ui.PictureRecorder();
         final canvas = Canvas(recorder);
 
-        // Setup transform
         if (_flipX) {
           canvas.translate(croppedUiImage.width.toDouble(), 0);
           canvas.scale(-1, 1);
@@ -180,15 +160,15 @@ class CropEditorWidgetState extends State<CropEditorWidget> {
     });
   }
 
-  void _resetCrop() {
-    setState(() {
-      _cropController.rotation = CropRotation.up;
-      _cropController.crop = const Rect.fromLTRB(0.05, 0.05, 0.95, 0.95);
-      _rotation = CropRotation.up;
-      _flipX = false;
-      _flipY = false;
-    });
-  }
+  // void _resetCrop() {
+  //   setState(() {
+  //     _cropController.rotation = CropRotation.up;
+  //     _cropController.crop = const Rect.fromLTRB(0.05, 0.05, 0.95, 0.95);
+  //     _rotation = CropRotation.up;
+  //     _flipX = false;
+  //     _flipY = false;
+  //   });
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -344,11 +324,11 @@ class CropEditorWidgetState extends State<CropEditorWidget> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     GlassButton(
-                      child: const Icon(Icons.check, color: Colors.white),
                       onTap: _applyCrop,
                       backgroundColor: LiquidGlassTheme.primary.withValues(
                         alpha: 0.8,
                       ),
+                      child: const Icon(Icons.check, color: Colors.white),
                     ),
                   ],
                 ),
