@@ -29,6 +29,8 @@ aurora/
 ├── THIRD_PARTY_LICENSES      # Third party license information
 ├── init.sh                   # Initialization script
 ├── .python-version          # Python version specification
+├── .gitmodules              # Git submodules configuration
+├── Submissions/             # Submissions directory
 ├── protos/                  # Protocol Buffer definitions
 │   ├── pose.proto          # Pose service definitions
 │   └── relighting.proto    # Relighting service definitions
@@ -46,7 +48,6 @@ aurora/
 │   │   ├── pose_change.py # Pose correction pipeline
 │   │   ├── relighting.py  # Relighting pipeline
 │   │   ├── mobile_sam.pt  # Mobile SAM model weights
-│   │   ├── movenet_lightning.tflite  # MoveNet pose detection model
 │   │   └── relighting/    # Relighting model resources
 │   │       ├── config.py
 │   │       ├── config.yaml
@@ -82,7 +83,11 @@ aurora/
 │   ├── macos/            # macOS-specific configuration
 │   ├── linux/            # Linux-specific configuration
 │   └── test/             # Flutter tests
-├── assets/               # Project assets
+├── assets/               # Project assets (images, diagrams)
+│   ├── header.png
+│   ├── backend-processing-diagram.png
+│   ├── Posecorrection.jpg
+│   └── Relighting.png
 └── protos/               # Protocol buffer definitions
 ```
 
@@ -202,7 +207,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 ## Pipelines Architecture
 
 ### Pose Correction and Reframe Pipeline
-![Alt text](assets\Posecorrection.jpg)
+![Alt text](assets/Posecorrection.jpg)
 
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
 
@@ -236,7 +241,7 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 
 ### Relighting Pipeline
 
-![Alt text](assets\Relighting.png)
+![Alt text](assets/Relighting.png)
 
 The relighting pipeline dynamically adjusts lighting conditions in images with customizable light configurations.
 
@@ -262,13 +267,13 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 ## Compute Profile and Resource Requirements
 
 ### Development Environment
+#### Data for A5000
 
-| Model | Precision | Device | Inference Time | Peak Memory Range | Primary Compute Unit | Target Model |
+| Model | Precision | Device | Inference Time | Peak Memory Range | ||
 |-------|-----------|--------|-----------------|-------------------|----------------------|--------------|
-| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
-| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
-| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
-| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
+| NeuralGaffer | FP16 (on GPU) | CUDA/CPU | 3-4s | 4-4.5 GB | ||
+| Reframing | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | ||
+| Stable Diffusion + ControlNet | FP16 (on GPU) | CUDA/CPU | 3-4s | 4.5 - 5 GB |  | |
 
 <!-- ### Production Deployment
 
@@ -277,8 +282,7 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 - **RAM**: 32 GB (Recommended for concurrent requests)
 - **GPU**: NVIDIA A5000 or equivalent for high throughput -->
 
-## Runtime Decisions and Optimizations
-
+## Models
 **On-Device Models** (Frontend - Real-time):
 - Magic Touch, Pose Landmark (TFLITE format)
 - Advantages: Low latency (50-200ms), privacy, offline capability
@@ -289,22 +293,13 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 - Advantages: High-quality results, complex operations, scalability
 - Trade-offs: Network latency, server load, scalability challenges
 
+## Runtime Decisions and Optimizations
+
+
 ### Optimization Techniques
 
 #### 1. Model Quantization
 - **INT8 Quantization**: Reduction in model size with minimal quality loss
-#### 2. Pipeline Parallelization
-<!-- ```
-Frontend Request
-    ↓
-[Parallel on Backend]
-├── Load Model
-├── Preprocess Image
-├── Execute Inference
-└── Postprocess Results
-    ↓
-Return to Frontend
-``` -->
 
 ### Memory Management
 **Model Loading - One time**
