@@ -12,6 +12,8 @@
 1. Create a virtual environment (recommended):
    ```bash
    python -m venv venv
+
+   # Activate the created environment map
    # On Windows
    venv\Scripts\activate
    # On macOS/Linux
@@ -23,12 +25,22 @@
    pip install -r backend/requirements.txt
    ```
 
-3. (Optional) Regenerate Proto Files: If you encounter gRPC-related errors, execute the initialization script. Note: This will overwrite existing generated files.
+3. (Optional) If you want to add extra environment maps for relighting, then:
+   - Add them to the `backend/ml_models/relighting/env_maps/`, following the format `envmap{i}.exr`, where `i` is the env map number
+   - Run the `create_env_map_metadata.py` file to process the environment maps
+   ```bash
+   cd backend/ml_models/relighting/
+   python create_env_map_metadata.py
+   cd ../../..
+   ```
+
+
+4. Generate Proto files, download and place the model checkpoints in the intended directories.
    ```bash
    ./init.sh
    ```
 
-4. Start the gRPC server:
+5. Start the gRPC server:
    ```bash
    python -m backend.main
    ```
