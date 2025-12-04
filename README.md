@@ -25,11 +25,15 @@ The application features a high-performance **Flutter** frontend optimized for m
 ```
 aurora/
 ├── README.md                 # Project documentation
-├── grpc.init.sh             # gRPC initialization script
+├── SETUP.md                  # Setup instructions
+├── THIRD_PARTY_LICENSES      # Third party license information
+├── init.sh                   # Initialization script
+├── .gitmodules              # Git submodules configuration
 ├── protos/                  # Protocol Buffer definitions
 │   ├── pose.proto          # Pose service definitions
 │   └── relighting.proto    # Relighting service definitions
 ├── backend/                # Python backend server
+│   ├── __init__.py
 │   ├── main.py            # Entry point for gRPC server
 │   ├── service.py         # gRPC service implementations
 │   ├── requirements.txt    # Python dependencies
@@ -38,15 +42,23 @@ aurora/
 │   ├── relighting_pb2.py  # Generated relighting protobuf
 │   ├── relighting_pb2_grpc.py  # Generated relighting gRPC
 │   ├── ml_models/         # ML model implementations
+│   │   ├── __init__.py
 │   │   ├── pose_change.py # Pose correction pipeline
 │   │   ├── relighting.py  # Relighting pipeline
+│   │   ├── movenet_lightning.tflite
 │   │   └── relighting/    # Relighting model resources
+│   │       ├── config.py
 │   │       ├── config.yaml
+│   │       ├── requirements.txt
 │   │       ├── create_env_map_metadata.py
-│   │       ├── env_map_generator.py
 │   │       ├── run_relight.py
-│   │       └── env_map/
+│   │       ├── upscaler.py
+│   │       ├── downloads.sh
+│   │       ├── env_map/
+│   │       ├── realesrgan/
+│   │       └── src/
 │   └── model/             # Data models
+│       ├── __init__.py
 │       └── lights_model.py # Light configuration models
 ├── frontend/              # Flutter mobile/desktop application
 │   ├── pubspec.yaml      # Flutter dependencies
@@ -69,6 +81,8 @@ aurora/
 │   ├── macos/            # macOS-specific configuration
 │   ├── linux/            # Linux-specific configuration
 │   └── test/             # Flutter tests
+├── assets/               # Project assets
+└── protos/               # Protocol buffer definitions
 ```
 
 ### 🛠️ Tech Stack
@@ -194,7 +208,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
 
 **Pipeline Components**:
-1. **Object Detection & Segmentation**: Utilizes MagicTouch to detect objects in user-selected regions.
+1. **Object Detection & Segmentation**: Utilizes MagicTouch to detect objects in user-selected regions. Mediapipe to map the original keypoints
 2. **Object Extraction**: Extracts the foreground object patch from the original image based on depth.
 3. **Background Restoration**: The original region where the object was removed is inpainted using LaMa (dilated convolution) for structural restoration
 4. **Object Placement**: Seamless integration of transformed regions with original image context
@@ -212,7 +226,7 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 **Performance Considerations**:
 - Real-time landmark detection (< 50ms on CPU)
 - Warping complexity scales with image resolution
-- Recommended resolution: 512×768 for optimal quality/speed trade-off
+- Recommended resolution: 1024×1024 for optimal quality/speed trade-off
 - Typical runtime: 1–5 seconds
 - Memory: 1.5–3 GB VRAM
 
@@ -243,12 +257,12 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 
 ### Development Environment
 
-| Component | Minimum | Recommended | Optimal |
-|-----------|---------|------------|---------|
-| **CPU** | Quad-core (2.0 GHz) | 6-core (2.5 GHz) | 8+ core (3.0+ GHz) |
-| **RAM** | 8 GB | 16 GB | 32 GB |
-| **GPU** | None (CPU inference) | NVIDIA GTX 1660+ / Apple Silicon | NVIDIA A100 / RTX 4090 |
-| **Storage** | 50 GB | 100 GB | 200+ GB |
+| Model | Precision | Device | Inference Time | Peak Memory Range | Primary Compute Unit | Target Model |
+|-------|-----------|--------|-----------------|-------------------|----------------------|--------------|
+| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
+| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
+| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
+| Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
 
 ### Production Deployment
 
@@ -280,22 +294,17 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 - **Peak Memory**: 2-4 GB during batch processing
 
 ## Runtime Decisions and Optimizations
-
-### Model Execution Strategy
-
-#### On-Device vs Cloud Processing
+#### On-Device vs Server Processing
 
 **On-Device Models** (Frontend - Real-time):
-- DeepLabv3, Mobile SAM, Pose Landmark (TFLITE format)
-- **Advantages**: Low latency (50-200ms), privacy, offline capability
-- **Trade-offs**: Limited model complexity, device power consumption
-- **Use Cases**: Quick previews, real-time segmentation, interactive tools
+- Magic Touch, Pose Landmark (TFLITE format)
+- Advantages: Low latency (50-200ms), privacy, offline capability
+- Trade-offs: Limited model complexity, device power consumption
 
 **Server-Side Models** (Backend - High-quality):
-- LAMA (inpainting), MiGAN (relighting), YOLOv8 (detection)
-- **Advantages**: High-quality results, complex operations, scalability
-- **Trade-offs**: Network latency, server load, scalability challenges
-- **Use Cases**: Final high-quality processing, intensive computations
+- LAMA (inpainting), Zero-1-to-3(Relighting)
+- Advantages: High-quality results, complex operations, scalability
+- Trade-offs: Network latency, server load, scalability challenges
 
 ### Optimization Techniques
 
@@ -319,7 +328,7 @@ Return to Frontend
 ```
 
 
-#### 4. Adaptive Resolution
+#### 4. Resolution
 | User Device | Recommended Input Resolution | Output Resolution |
 |-----------|------------------------------|------------------|
 | Mobile (3GB RAM) | 256×384 | 512×768 |
@@ -329,7 +338,7 @@ Return to Frontend
 
 ### Memory Management
 
-#### Backend Memory Strategy
+#### Backend
 ```python
 # Model Loading (One-time at startup)
 relight_model = RelightingModel()  # ~2 GB
@@ -354,23 +363,8 @@ pose_model = PoseCorrectionPipeline()  # ~1 GB
 |-----------|----------------|------------|-----------|
 | Pose Detection | 150-200 | - | 150-200 |
 | Relighting | - | 1000-3000 | 1050-3100 |
-| Inpainting | - | 2000-5000 | 2050-5100 |
+| Reframing | - | 2000-5000 | 2050-5100 |
 
-**Network Latency**: ~10-50ms (LAN), 50-200ms (WAN)
-
-### Power Consumption Profiles
-
-#### Frontend (Mobile)
-- **Idle**: 50-100 mW
-- **On-device inference**: 500-1500 mW
-- **Screen + processing**: 3-5 W
-- **Typical session**: 5-10% battery per hour active use
-
-#### Backend Server
-- **Idle**: 100-200 W
-- **Single request processing**: 300-600 W
-- **Peak load (4+ concurrent)**: 800-1200 W
-- 
 
 ## 🛡️ Ethics & Transparency
 #### Responsible AI Editing for 2030
@@ -396,9 +390,9 @@ Aurora includes an explicit, user-facing consent step before allowing any cloud-
 
 To prevent harmful or deceptive editing:
 
-✔ No face-reshaping, identity manipulation, or deepfake creation   
-✔ Pose correction limited to mild geometric adjustments    
-✔ Sensitive images (IDs, minors, official documents) trigger warnings    
+No face-reshaping, identity manipulation, or deepfake creation   
+Pose correction limited to mild geometric adjustments    
+Sensitive images (IDs, minors, official documents) trigger warnings    
 
 These constraints ensure ethical safety while retaining creative freedom.
 
@@ -413,7 +407,6 @@ Model Licensing Summary
 
 - MagicTouch.tflite — Derived from Google/Meta segmentation research (Apache 2.0).
 
-- MobileSAM — Apache 2.0. Fully reproducible segmentation.
 
 - MediaPipe Holistic — Apache 2.0, includes explicit anti-misuse guidelines.
 
