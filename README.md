@@ -3,7 +3,7 @@
 
   **Editing app for the future**
 
-  [![Flutter](https://img.shields.io/badge/Flutter-3.9.2-02569B?logo=flutter)](https://flutter.dev)
+  [![Flutter](https://img.shields.io/badge/Flutter-3.3.0+-02569B?logo=flutter)](https://flutter.dev)
   [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python)](https://www.python.org)
   [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 </div>
