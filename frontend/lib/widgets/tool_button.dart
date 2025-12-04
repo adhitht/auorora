@@ -7,7 +7,7 @@ class ToolButton extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
 
-  const ToolButton({
+  const ToolButton({super.key, 
     required this.icon,
     required this.label,
     required this.onTap,

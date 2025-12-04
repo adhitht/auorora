@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aurora/services/pose_detection_service.dart';
 

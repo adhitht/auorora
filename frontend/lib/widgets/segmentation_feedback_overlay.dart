@@ -34,7 +34,7 @@ class _SegmentationFeedbackOverlayState extends State<SegmentationFeedbackOverla
 
     _controller.forward().then((_) {
       if (mounted) {
-        // Optional: trigger callback or just let it sit (or fade out)
+        // Optional: trigger callback or just let it sit
       }
     });
   }
@@ -54,7 +54,6 @@ class _SegmentationFeedbackOverlayState extends State<SegmentationFeedbackOverla
 
         return ShaderMask(
           shaderCallback: (bounds) {
-            // 1. Mask the effect to the object shape
             return ImageShader(
               widget.maskImage,
               TileMode.clamp,
@@ -70,7 +69,6 @@ class _SegmentationFeedbackOverlayState extends State<SegmentationFeedbackOverla
           blendMode: BlendMode.dstIn,
           child: ShaderMask(
             shaderCallback: (rect) {
-              // 2. Create the scanning gradient
               return LinearGradient(
                 begin: Alignment(
                   -2.0 + (_animation.value * 4.0),
