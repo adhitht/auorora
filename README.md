@@ -18,7 +18,7 @@ Aurora Image Editing Suite is a full-stack application designed to provide profe
 - **Relighting**: Dynamically relight images with customizable light configurations
 - **Smart Editing Tools**: Context-aware inpainting and background manipulation
 
-The application features a high-performance **Flutter** frontend optimized for modern Android devices. Its robust **Python** backend utilizes **gRPC** for efficient, low-latency communication, orchestrating state-of-the-art machine learning models for advanced image processing.
+The application features a high-performance **Flutter** frontend optimized for modern Android devices. Its robust **Python** backend utilizes **gRPC** for efficient, low-latency communication.
 
 ## File Structure
 
@@ -92,7 +92,6 @@ aurora/
 - **Communication**: gRPC with Protocol Buffers
 - **Core**: `grpcio`, `protobuf`, `pydantic`, `numpy`, `Pillow`, `opencv-python-headless`
 - **ML Frameworks**: `torch`, `torchvision`, `transformers`, `diffusers`, `peft`
-- **Specialized Models**: `mediapipe` (Pose), `timm`
 
 #### Frontend (Flutter 3.9.2+)
 - **Framework**: Flutter 3.9.2+
@@ -169,7 +168,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 
 3. **Model Processing**
    - Run appropriate ML pipeline
-   - Apply transformations based on parameters
+   - Apply transformations
    - Generate processed image
 
 4. **Postprocessing**
@@ -178,7 +177,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
    - Send back to frontend
 
 5. **Error Handling**
-   - Graceful error handling with user-friendly messages
+   - Error handling with user-friendly messages
    - Logging for debugging
 
 ## Models Used
@@ -186,7 +185,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 ### On-Device Models (Frontend)
 - **Pose Landmark**: Human pose detection (`pose_landmark_full.tflite`)
 - **Magic Touch**: Interactive segmentation (`magic_touch.tflite`)
-- **Qwen GGUF**:   
+- **Qwen GGUF**
 - **SigLIP Tags**: Image tagging and classification
 
 ### Server-Side Models (Backend)
@@ -203,6 +202,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 ## Pipelines Architecture
 
 ### Pose Correction and Reframe Pipeline
+![Alt text](assets\Posecorrection.jpg)
 
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
 
@@ -236,6 +236,8 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 
 ### Relighting Pipeline
 
+![Alt text](assets\Relighting.png)
+
 The relighting pipeline dynamically adjusts lighting conditions in images with customizable light configurations.
 
 **Pipeline Components**:
@@ -268,36 +270,14 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 | Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
 | Model Name | FP32/INT8 | CPU/GPU | Time (ms/s) | Range (MB/GB) | CPU/GPU/TPU | Use Case |
 
-### Production Deployment
+<!-- ### Production Deployment
 
 #### Server Configuration
 - **CPU Cores**: 8-16 cores (for thread pool processing)
 - **RAM**: 32 GB (Recommended for concurrent requests)
-- **GPU**: NVIDIA A100 or equivalent for high throughput
-
-#### Per-Request Resource Utilization
-| Operation | CPU Time | GPU Time | Memory |
-|-----------|----------|----------|--------|
-| Pose Correction | 50-100ms | - | 200-400 MB |
-| Relighting | 100-200ms | 1-2s | 1.5-2 GB |
-| Inpainting | 100-200ms | 2-4s | 2-3 GB |
-
-### Frontend Resource Profile
-
-#### Mobile (iOS/Android)
-- **Minimum RAM**: 4 GB
-- **Storage**: 500 MB - 1 GB (with bundled models)
-- **On-device Models**: ~300 MB total
-- **Peak Memory**: 500-800 MB during inference
-
-#### Desktop (Windows/macOS/Linux)
-- **Minimum RAM**: 8 GB
-- **Storage**: 2-3 GB (with all models)
-- **GPU Support**: Optional (CUDA/Metal/Vulkan acceleration)
-- **Peak Memory**: 2-4 GB during batch processing
+- **GPU**: NVIDIA A5000 or equivalent for high throughput -->
 
 ## Runtime Decisions and Optimizations
-#### On-Device vs Server Processing
 
 **On-Device Models** (Frontend - Real-time):
 - Magic Touch, Pose Landmark (TFLITE format)
@@ -312,13 +292,9 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 ### Optimization Techniques
 
 #### 1. Model Quantization
-- **INT8 Quantization**: 75% reduction in model size with minimal quality loss
-- **Implemented Models**:
-  - `rainnet_512_int8.onnx`: 4x faster inference than FP32
-  - Mobile TFLITE models: 8-bit integer quantization
-
+- **INT8 Quantization**: Reduction in model size with minimal quality loss
 #### 2. Pipeline Parallelization
-```
+<!-- ```
 Frontend Request
     ↓
 [Parallel on Backend]
@@ -328,45 +304,29 @@ Frontend Request
 └── Postprocess Results
     ↓
 Return to Frontend
-```
-
-
-#### 4. Resolution
-| User Device | Recommended Input Resolution | Output Resolution |
-|-----------|------------------------------|------------------|
-| Mobile (3GB RAM) | 256×384 | 512×768 |
-| Mobile (6GB+ RAM) | 512×768 | 1024×1536 |
-| Desktop | 1024×1536 | 2048×3072 |
-| GPU-enabled | 2048×3072 | 4096×6144 |
+``` -->
 
 ### Memory Management
+**Model Loading - One time**
 
-#### Backend
-```python
-# Model Loading (One-time at startup)
-relight_model = RelightingModel()  # ~2 GB
-pose_model = PoseCorrectionPipeline()  # ~1 GB
+Relighting: ~2.5 GB
+Pose correction: ~1 GB
 
-# Per-Request Management
-# Input image: 50-200 MB (depends on resolution)
-# Working memory: 500 MB - 2 GB (varies by operation)
-# Output buffer: Reused across requests
-```
+**Per-Request Management**
 
-#### Memory Limits
-- **Per-request timeout**: 5 minutes
-- **Memory limit per operation**: 4 GB
-- **Garbage collection**: Triggered after each request
+Input image: 50-200 MB
+Working memory: 500 MB - 2 GB
+
 
 ### Latency Optimization
 
 #### Expected Response Times (Local Network)
 
-| Operation | On-Device (ms) | Server (ms) | Total (ms) |
+| Operation | On-Device (s) | Server (s) | Total (s) |
 |-----------|----------------|------------|-----------|
-| Pose Detection | 150-200 | - | 150-200 |
-| Relighting | - | 1000-3000 | 1050-3100 |
-| Reframing | - | 2000-5000 | 2050-5100 |
+| Pose Detection | 0.8-1 | 6-7 | 7-8 |
+| Relighting | 0.5-1 | 6-7 | 6.5-8 |
+| Reframing | 3-5 | - | 3-5 |
 
 
 ## Ethics & Transparency
