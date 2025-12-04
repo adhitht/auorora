@@ -468,3 +468,51 @@ pose_model = PoseCorrectionPipeline()  # ~1 GB
 - **Idle**: 100-200 W
 - **Single request processing**: 300-600 W
 - **Peak load (4+ concurrent)**: 800-1200 W
+- 
+
+## 🛡️ Ethics & Transparency
+#### Responsible AI Editing for 2030
+
+Aurora is designed as a future-ready, ethical AI editor. Our goal is to provide powerful creative tools while ensuring user consent, transparency, and responsible model usage.
+
+### AI Edit Disclosure
+An AI-Edit Disclosure Panel communicates which parts of the image were changed and which models powered the edit.    
+- **In-App Provenance Badge**: A small badge is shown on exported images    
+- **C2PA-style Disclosure Panel**: Makes AI involvement clear, showing features applied, models used, sources    
+- **Invisible provenance watermark**: Encoded in image using LSB embedding.    
+
+### Edit Traceability & Modified-Region Detection
+Aurora supports region-level transparency by computing an Edit Heat Map showing exactly which parts of the image were altered and including this in the metadata.
+
+### Consent & Privacy Controls
+
+Aurora includes an explicit, user-facing consent step before allowing any cloud-based AI processing.   
+- **Cloud Processing Consent Prompt in UI**: We disclose that we mayhave to process user images on cloud, but these are not stored or used in training   
+- **On-Device by Default**: Whenever possible, the app uses offline editing   
+
+### Misuse Prevention & Ethical Guardrails
+
+To prevent harmful or deceptive editing:
+
+✔ No face-reshaping, identity manipulation, or deepfake creation   
+✔ Pose correction limited to mild geometric adjustments    
+✔ Sensitive images (IDs, minors, official documents) trigger warnings    
+
+These constraints ensure ethical safety while retaining creative freedom.
+
+### Open-Source Model Licensing Transparency
+
+Every model used in the pipeline is open-source, auditable, and ethically licensed.
+We avoid proprietary, opaque, or illegally sourced datasets.
+
+Model Licensing Summary
+
+- LaMa (Dilated) — MIT License. Fully open and unrestricted with attribution.
+
+- MagicTouch.tflite — Derived from Google/Meta segmentation research (Apache 2.0).
+
+- MobileSAM — Apache 2.0. Fully reproducible segmentation.
+
+- MediaPipe Holistic — Apache 2.0, includes explicit anti-misuse guidelines.
+
+- Stable Diffusion 1.5 — OpenRAIL-M license restricting harmful/deceptive use.
