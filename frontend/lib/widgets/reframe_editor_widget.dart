@@ -63,6 +63,13 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
   Offset _cutoutPosition = Offset.zero;
   double _lastScale = 1.0;
 
+  double _cutoutScale = 1.0;  
+  double _baseScale = 1.0;
+  Offset _cutoutFocalPoint = Offset.zero;
+
+  double _cutoutRotation = 0.0;     // current displayed rotation in radians
+  double _baseRotation = 0.0;       // rotation baseline during gesture
+
   final PoseDetectionService _poseService = PoseDetectionService();
   final InpaintingService _inpaintingService = InpaintingService();
   final RainnetHarmonizationService _harmonizationService =
@@ -427,36 +434,64 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
           final cutoutImage = img.decodeImage(_cutoutResult!.imageBytes);
 
           if (cutoutImage != null) {
-            final double offsetX = _cutoutPosition.dx / _lastScale;
-            final double offsetY = _cutoutPosition.dy / _lastScale;
+            // STEP 1 — SCALE THE CUTOUT PIXELS
+            img.Image scaledCutout = cutoutImage;
+            if (_cutoutScale != 1.0) {
+              scaledCutout = img.copyResize(
+                cutoutImage,
+                width: (cutoutImage.width * _cutoutScale).round(),
+                height: (cutoutImage.height * _cutoutScale).round(),
+                interpolation: img.Interpolation.linear,
+              );
+            }
 
-            final int targetX = (_cutoutResult!.x + offsetX).round();
-            final int targetY = (_cutoutResult!.y + offsetY).round();
-
+            img.Image rotatedCutout = scaledCutout;
+              if (_cutoutRotation != 0.0) {
+                rotatedCutout = img.copyRotate(
+                  scaledCutout,
+                  _cutoutRotation * 180 / 3.1415926535,  // convert radians to degrees
+                );
+              }
+          
+            // STEP 2 — Calculate final placement in original resolution
+            final double originalX = _cutoutResult!.x.toDouble();
+            final double originalY = _cutoutResult!.y.toDouble();
+            
+            // Convert drag offsets
+            final double dragX = _cutoutPosition.dx / _lastScale;
+            final double dragY = _cutoutPosition.dy / _lastScale;
+            
+            // Scaled dimensions
+            final double scaledW = rotatedCutout.width.toDouble();
+            final double scaledH = rotatedCutout.height.toDouble();
+            
+            // Center offset compensation when scaling
+            final double centerOffsetX = (cutoutImage.width - scaledW) / 2.0;
+            final double centerOffsetY = (cutoutImage.height - scaledH) / 2.0;
+            
+            // Final coordinates
+            final int targetX = (originalX + dragX + centerOffsetX).round();
+            final int targetY = (originalY + dragY + centerOffsetY).round();
+          
+            // STEP 3 — Composite scaled cutout onto the background
             img.compositeImage(
               image,
-              cutoutImage,
+              rotatedCutout,
               dstX: targetX,
               dstY: targetY,
             );
-
-            // ---- HARMONIZATION ----
-            // Create a mask for the cutout at the new position
-            final fullMask = img.Image(
-              width: image.width,
-              height: image.height,
-            );
-            // Fill with black (0)
+          
+            // STEP 4 — Build harmonization mask using the SCALED cutout
+            final fullMask = img.Image(width: image.width, height: image.height);
             img.fill(fullMask, color: img.ColorRgb8(0, 0, 0));
-
-            // Draw the cutout shape (white) onto the mask
-            // We can use the alpha channel of cutoutImage to determine the mask
-            for (int y = 0; y < cutoutImage.height; y++) {
-              for (int x = 0; x < cutoutImage.width; x++) {
-                final pixel = cutoutImage.getPixel(x, y);
+          
+            for (int y = 0; y < rotatedCutout.height; y++) {
+              for (int x = 0; x < rotatedCutout.width; x++) {
+                final pixel = rotatedCutout.getPixel(x, y);
                 if (pixel.a > 0) {
                   final dx = targetX + x;
                   final dy = targetY + y;
+          
                   if (dx >= 0 &&
                       dx < fullMask.width &&
                       dy >= 0 &&
@@ -667,14 +702,29 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
                         top: (_cutoutResult!.y * scale) + _cutoutPosition.dy,
                         width: _cutoutResult!.width * scale,
                         height: _cutoutResult!.height * scale,
+                        
                         child: GestureDetector(
-                          onPanUpdate: (details) {
+                          onScaleStart: (details) {
+                            _baseScale = _cutoutScale;
+                            _baseRotation = _cutoutRotation;
+                          },
+                        
+                          onScaleUpdate: (details) {
                             setState(() {
-                              _cutoutPosition += details.delta;
+                              _cutoutPosition += details.focalPointDelta;
+                              _cutoutScale = (_baseScale * details.scale).clamp(0.5, 3.0);
+                              _cutoutRotation = _baseRotation + details.rotation;
                             });
                           },
-                          child: SegmentedCutoutView(
-                            imageBytes: _cutoutResult!.imageBytes,
+                        
+                          child: Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.identity()
+                              ..scale(_cutoutScale)
+                              ..rotateZ(_cutoutRotation),
+                            child: SegmentedCutoutView(
+                              imageBytes: _cutoutResult!.imageBytes,
+                            ),
                           ),
                         ),
                       ),
