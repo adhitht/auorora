@@ -9,7 +9,9 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-# ML Imports
+from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+from transformers import CLIPImageProcessor
+
 from mobile_sam import sam_model_registry, SamPredictor
 from diffusers import StableDiffusionControlNetInpaintPipeline, ControlNetModel, UniPCMultistepScheduler
 import mediapipe as mp
@@ -81,7 +83,7 @@ class HolisticHelper:
 class PoseCorrectionPipeline:
     def __init__(self, device='cuda'):
         self.device = device if torch.cuda.is_available() else 'cpu'
-        print(f"🚀 Initializing PoseCorrectionPipeline on {self.device}...")
+        print(f"Initializing PoseCorrectionPipeline on {self.device}...")
         
         # 1. Ensure MobileSAM Weights exist
         self._check_weights()
@@ -90,23 +92,34 @@ class PoseCorrectionPipeline:
         self.mp_helper = HolisticHelper()
         
         # 3. Load MobileSAM
-        print("⏳ Loading MobileSAM...")
+        print("Loading MobileSAM...")
         self.sam = sam_model_registry["vit_t"](checkpoint="mobile_sam.pt")
         self.sam.to(device=self.device)
         self.sam.eval()
         self.sam_predictor = SamPredictor(self.sam)
         
         # 4. Load Diffusers/ControlNet
-        print("⏳ Loading ControlNet & Stable Diffusion...")
+        print("Loading ControlNet & Stable Diffusion...")
         self.controlnet = ControlNetModel.from_pretrained(
             "lllyasviel/control_v11p_sd15_openpose", 
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32
         )
+
+        print("Loading Safety Checker...")
+        self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+            "CompVis/stable-diffusion-safety-checker", 
+            torch_dtype=torch.float16
+        )
+        self.feature_extractor = CLIPImageProcessor.from_pretrained(
+            "openai/clip-vit-base-patch32"
+        )
+
         self.pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             "Lykon/dreamshaper-8-inpainting", 
             controlnet=self.controlnet, 
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32, 
-            safety_checker=None
+            safety_checker=self.safety_checker,
+            feature_extractor=self.feature_extractor
         ).to(self.device)
         self.pipe.scheduler = UniPCMultistepScheduler.from_config(self.pipe.scheduler.config)
         
@@ -114,11 +127,11 @@ class PoseCorrectionPipeline:
         if self.device == 'cuda':
             self.pipe.enable_model_cpu_offload()
             
-        print("✅ Models Loaded Successfully.")
+        print("Models Loaded Successfully.")
 
     def _check_weights(self):
         if not os.path.exists("mobile_sam.pt"):
-            print("⬇️ Downloading MobileSAM weights...")
+            print("Downloading MobileSAM weights...")
             url = "https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt"
             response = requests.get(url)
             with open("mobile_sam.pt", "wb") as f:
