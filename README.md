@@ -14,10 +14,8 @@ A comprehensive image editing and manipulation application featuring AI-powered 
 
 Aurora Image Editing Suite is a full-stack application designed to provide image editing capabilities AI models. The application features:
 
-- **Pose Correction**: Adjust and modify human poses in images using pose landmarks
+- **Pose Correction & Reframe**: Adjust and modify human poses and object position in images using masks, pose landmarks
 - **Relighting**: Dynamically relight images with customizable light configurations
-- **Inpainting**: Remove unwanted objects and intelligently fill regions
-- **Object Detection & Segmentation**: Identify and segment objects in images
 
 The application features a high-performance **Flutter** frontend optimized for modern Android devices. Its robust **Python** backend utilizes **gRPC** for efficient, low-latency communication, orchestrating state-of-the-art machine learning models for advanced image processing.
 
@@ -103,17 +101,17 @@ aurora/
 
 **3. Select Editing Tool**
    - Choose from available tools:
-     - 🧘 **Pose Correction**
+     - 🧘 **Pose Correction and Reframe**
      - 💡 **Relighting**
-     - 🎨 **Inpainting**
-     - 🖼️ **Background Edit**
+     - 🎯 **Context-aware Auto Suggestion**
 
 **4. Configure Tool Parameters**
 
    <details>
-   <summary><b>Pose Tool</b></summary>
+   <summary><b>Pose & Reframe Tool</b></summary>
    
    - Adjust pose landmarks by dragging points
+   - Select region and drag to move
    - Preview changes in real-time
    - Confirm and apply changes
    </details>
@@ -124,15 +122,6 @@ aurora/
    - Select light positions and intensity
    - Adjust color temperature
    - Preview relit image
-   - Apply changes
-   </details>
-
-   <details>
-   <summary><b>Inpainting Tool</b></summary>
-
-   - Paint/mark regions to remove
-   - Select fill style (inpaint, remove object)
-   - Preview result
    - Apply changes
    </details>
 
@@ -207,7 +196,7 @@ aurora/
 
 ## Pipelines Architecture
 
-### Pose Correction Pipeline
+### Pose Correction and Reframe Pipeline
 
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
 
@@ -217,18 +206,30 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 3. **Pose Warping**: Applied transformation to remap pixels based on modified pose
 4. **Blending**: Seamless integration of transformed regions with original image context
 
+The object reframing pipeline intelligently detects, extracts, relocates, and reintegrates objects within an image while maintaining visual harmony.
+
+**Pipeline Components**:
+1. **Object Detection & Segmentation**: Utilizes MagicTouch to detect objects in user-selected regions.
+2. **Object Extraction**: Extracts the foreground object patch from the original image based on depth.
+3. **Background Restoration**: The original region where the object was removed is inpainted using LaMa (dilated convolution) for structural restoration
+4. **Object Placement**: Seamless integration of transformed regions with original image context
+
 **Input Parameters**:
 - Original image (RGB format)
 - Offset configuration (JSON with landmark adjustments)
+- Object selection coordinates
+- Transform parameters for translation
 - Optional mask for region-specific processing
-
+   
 **Output**:
-- Pose-corrected image maintaining visual coherence
+- Pose-corrected, reframed image maintaining visual coherence
 
 **Performance Considerations**:
 - Real-time landmark detection (< 50ms on CPU)
 - Warping complexity scales with image resolution
 - Recommended resolution: 512×768 for optimal quality/speed trade-off
+- Typical runtime: 1–5 seconds
+- Memory: 1.5–3 GB VRAM
 
 ### Relighting Pipeline
 
@@ -257,31 +258,6 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 - Model inference: 1-3 seconds for 512×512 images
 - GPU acceleration recommended for production use
 - Memory requirement: ~4GB VRAM for batch processing
-
-### Inpainting Pipeline
-
-Context-aware image inpainting to remove unwanted objects and intelligently fill regions.
-
-**Pipeline Components**:
-1. **Mask Processing**: Accepts user-painted or segmentation-based masks
-2. **Feature Extraction**: Extracts surrounding context from non-masked regions
-3. **LAMA Model**: Diffusion-based inpainting with large receptive field
-4. **Refinement**: Post-processing to blend inpainted regions seamlessly
-
-**Input Parameters**:
-- Original image
-- Binary mask indicating regions to inpaint
-- Optional style hints or reference patterns
-
-**Output**:
-- Inpainted image with contextually appropriate content
-
-**Performance Considerations**:
-- Inference time: 2-4 seconds for 512×512 images
-- Larger masks increase computational complexity
-- Quality improves with clear surrounding context
-
-<!-- This is the start of Compute Profile -->
 
 ## Compute Profile and Resource Requirements
 
