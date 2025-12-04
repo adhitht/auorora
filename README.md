@@ -193,7 +193,9 @@ Refer to `SETUP.md` [here](./SETUP.md).
 - **LAMA**: Inpainting model
 - **Zero-1-to-3**: Object regeneration model
 - **Depth-Anything V2**: Depth estimation
-- **MediaPipe**: Pose landmark detection
+- **MediaPipe Holistic**: Pose landmark detection
+- **SAM**: For server side segementation.
+- **Stable Diffusion**: Conditioned on ControlNet.
 - **Real-ESRGAN**: Upsampling
 
 <!-- This is the start of Pipelines Architecture -->
@@ -205,14 +207,19 @@ Refer to `SETUP.md` [here](./SETUP.md).
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
 
 **Pipeline Components**:
-1. **Object Detection & Segmentation**: Utilizes MagicTouch to detect objects in user-selected regions. Mediapipe to map the original keypoints
-2. **Object Extraction**: Extracts the foreground object patch from the original image based on depth.
-3. **Background Restoration**: The original region where the object was removed is inpainted using LaMa (dilated convolution) for structural restoration
-4. **Object Placement**: Seamless integration of transformed regions with original image context
+1.**Pose Detection**: MediaPipe Holistic analyzes the image to accurately map the original keypoints for all body parts.
+
+2. **Segmentation**: SAM isolates the human figure to define the exact boundaries for texture extraction and inpainting.
+
+3. **Keypoint Modification & Hip Scaling:** User-defined offsets adjust the target keypoints (Arms: Elbow/Wrist; Legs: Knee/Ankle), and hip offsets calculate the HIP_SCALE for slimming/widening.
+
+4. **Extract & Warp (Arms/Legs)**: Targeted limb segments (e.g., Hip → Knee) are extracted using the SAM mask, geometrically warped/rotated to match the new pose, and pasted into the canvas.
+
+5. **Inpainting via SD & ControlNet**: The original limb area is erased/filled, and the final mask (covering erased and warped areas) guides the ControlNet-conditioned Stable Diffusion model (using the Lykon/dreamshaper-8-inpainting checkpoint) to seamlessly regenerate the image according to the new skeleton.
 
 **Input Parameters**:
 - Original image (RGB format)
-- Offset configuration (JSON with landmark adjustments)
+- Modified configuration (JSON with landmark adjustments)
 - Object selection coordinates
 - Transform parameters for translation
 - Mask for subject processing
@@ -221,18 +228,18 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 - Pose-corrected, reframed image maintaining visual coherence
 
 **Performance Considerations**:
-- Real-time landmark detection (< 50ms on CPU)
+- Real-time landmark detection (< 200ms on CPU)
 - Warping complexity scales with image resolution
 - Recommended resolution: 1024×1024 for optimal quality/speed trade-off
-- Typical runtime: 1–5 seconds
-- Memory: 1.5–3 GB VRAM
+- Typical runtime: 6-8 seconds
+- Memory: 2–3 GB VRAM
 
 ### Relighting Pipeline
 
 The relighting pipeline dynamically adjusts lighting conditions in images with customizable light configurations.
 
-**Pipeline Components** (`backend/ml_models/relighting.py`):
-1. **Semantic Understanding**: Analyzes image composition
+**Pipeline Components**:
+1. **Object segmentation**: Segments the object from the image based on user input
 2. **Light Configuration**: Accepts user-defined light positions, and intensity
 3. **Environment Map Generation**: Creates environment maps based on config
 4. **Neural Relighting**: Model applies learned relighting transformations
@@ -265,9 +272,8 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 
 #### Server Configuration
 - **CPU Cores**: 8-16 cores (for thread pool processing)
-- **RAM**: 32-64 GB (model loading + concurrent requests)
-- **GPU**: NVIDIA A100/H100 or equivalent for high throughput
-- **Network**: 1Gbps+ for streaming image data
+- **RAM**: 32 GB (Recommended for concurrent requests)
+- **GPU**: NVIDIA A100 or equivalent for high throughput
 
 #### Per-Request Resource Utilization
 | Operation | CPU Time | GPU Time | Memory |
@@ -363,7 +369,7 @@ pose_model = PoseCorrectionPipeline()  # ~1 GB
 | Reframing | - | 2000-5000 | 2050-5100 |
 
 
-## 🛡️ Ethics & Transparency
+## Ethics & Transparency
 #### Responsible AI Editing for 2030
 
 Aurora is designed as a future-ready, ethical AI editor. Our goal is to provide powerful creative tools while ensuring user consent, transparency, and responsible model usage.
@@ -403,7 +409,6 @@ Model Licensing Summary
 - LaMa (Dilated) — MIT License. Fully open and unrestricted with attribution.
 
 - MagicTouch.tflite — Derived from Google/Meta segmentation research (Apache 2.0).
-
 
 - MediaPipe Holistic — Apache 2.0, includes explicit anti-misuse guidelines.
 
