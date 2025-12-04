@@ -153,11 +153,9 @@ class _EditorScreenState extends State<EditorScreen>
         _exitChatMode();
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Undone: ${entry.type.displayName}'),
-          duration: const Duration(seconds: 1),
-        ),
+      _notificationService.show(
+        'Undone: ${entry.type.displayName}',
+        type: NotificationType.info,
       );
     }
   }
@@ -177,11 +175,9 @@ class _EditorScreenState extends State<EditorScreen>
         _exitChatMode();
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Redone: ${entry.type.displayName}'),
-          duration: const Duration(seconds: 1),
-        ),
+      _notificationService.show(
+        'Redone: ${entry.type.displayName}',
+        type: NotificationType.info,
       );
     }
   }
@@ -406,9 +402,10 @@ class _EditorScreenState extends State<EditorScreen>
       _isProcessing = false;
       // _detectedTags = []; // Keep tags
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Adjustments applied')));
+    _notificationService.show(
+      'Adjustments applied',
+      type: NotificationType.success,
+    );
   }
 
   void _onReframeApplied(File reframedFile) {
@@ -430,9 +427,10 @@ class _EditorScreenState extends State<EditorScreen>
       _isProcessing = false;
       // _detectedTags = []; // Keep tags
     });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Reframe applied')));
+    _notificationService.show(
+      'Reframe applied',
+      type: NotificationType.success,
+    );
   }
 
   Future<void> _savePhoto() async {
@@ -451,17 +449,17 @@ class _EditorScreenState extends State<EditorScreen>
 
       if (mounted) {
         setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Photo saved successfully to ${savedFile.path}'),
-          ),
+        _notificationService.show(
+          'Photo saved successfully to ${savedFile.path}',
+          type: NotificationType.success,
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save photo: ${e.toString()}')),
+        _notificationService.show(
+          'Failed to save photo: ${e.toString()}',
+          type: NotificationType.error,
         );
       }
     }
@@ -480,8 +478,9 @@ class _EditorScreenState extends State<EditorScreen>
     } catch (e) {
       if (mounted) {
         debugPrint('Failed to share photo: ${e.toString()}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to share photo: ${e.toString()}')),
+        _notificationService.show(
+          'Failed to share photo: ${e.toString()}',
+          type: NotificationType.error,
         );
       }
     } finally {
@@ -752,9 +751,12 @@ class _EditorScreenState extends State<EditorScreen>
                   onShowMessage: (message, isSuccess) {
                     if (!mounted) return;
                     try {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(message)));
+                    _notificationService.show(
+                      message,
+                      type: isSuccess
+                          ? NotificationType.success
+                          : NotificationType.error,
+                    );
                     } catch (_) {}
                   },
                   controller: _relightController,
@@ -775,9 +777,12 @@ class _EditorScreenState extends State<EditorScreen>
                 onShowMessage: (message, isSuccess) {
                   if (!mounted) return;
                   try {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text(message)));
+                    _notificationService.show(
+                      message,
+                      type: isSuccess
+                          ? NotificationType.success
+                          : NotificationType.error,
+                    );
                   } catch (_) {}
                 },
               )
