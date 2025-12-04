@@ -93,7 +93,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 
 <!-- TODO: Add GIFS here later -->
 
-### 📱 Mobile/Desktop Application Flow
+### Mobile/Desktop Application Flow
 
 **1. Launch Application**
    - Open the Aurora image editing application
@@ -110,7 +110,6 @@ Refer to `SETUP.md` [here](./SETUP.md).
      - **Context-aware Auto Suggestion**
 
 **4. Configure Tool Parameters**
-
    <details>
    <summary><b>Pose & Reframe Tool</b></summary>
    
@@ -154,7 +153,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 
 2. **Image Preprocessing**
    - Decode image from bytes
-   - Load optional mask data
+   - Load mask data
    - Prepare data for ML models
 
 3. **Model Processing**
@@ -164,7 +163,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 
 4. **Postprocessing**
    - Encode result to PNG/JPEG
-   - Prepare response message
+   - Prepare response
    - Send back to frontend
 
 5. **Error Handling**
@@ -174,26 +173,17 @@ Refer to `SETUP.md` [here](./SETUP.md).
 ## Models Used
 
 ### On-Device Models (Frontend)
-- **DeepLabv3**: Semantic segmentation (`deeplabv3.tflite`)
-- **Mobile SAM**: Prompt-based segmentation
-  - Image encoder: `mobile_sam_image_encoder.tflite`
-  - Mask decoder: `mobile_sam_mask_decoder.tflite`
 - **Pose Landmark**: Human pose detection (`pose_landmark_full.tflite`)
 - **Magic Touch**: Interactive segmentation (`magic_touch.tflite`)
-- **Object Detection**: SamSAM object detection (`sam2_object_detection.tflite`)
+- **Qwen GGUF**:   
+- **SigLIP Tags**: Image tagging and classification
 
 ### Server-Side Models (Backend)
-- **LAMA**: Inpainting model (`lama_dilated/`)
-- **MiGAN**: Relighting model (`migan_pipeline_v2.onnx`)
-- **RainNet**: Image enhancement (`rainnet_512_int8.onnx`)
-- **Pose Correction**: Human pose manipulation (custom pipeline)
+- **LAMA**: Inpainting model
+- **Zero-1-to-3**: Object regeneration model
+- **Depth-Anything V2**: Depth estimation
 - **MediaPipe**: Pose landmark detection
-- **YOLOv8**: Object detection
-
-### Supporting Models
-- **SigLIP Tags**: Image tagging and classification
-- **Transformers**: Various pretrained models for feature extraction
-
+- **Real-ESRGAN**: Upsampling
 
 <!-- This is the start of Pipelines Architecture -->
 
@@ -202,14 +192,6 @@ Refer to `SETUP.md` [here](./SETUP.md).
 ### Pose Correction and Reframe Pipeline
 
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
-
-**Pipeline Components** (`backend/ml_models/pose_change.py`):
-1. **Pose Detection**: MediaPipe extracts 33 body landmarks from the input image
-2. **Landmark Transform**: User-provided offset configurations adjust landmark positions
-3. **Pose Warping**: Applied transformation to remap pixels based on modified pose
-4. **Blending**: Seamless integration of transformed regions with original image context
-
-The object reframing pipeline intelligently detects, extracts, relocates, and reintegrates objects within an image while maintaining visual harmony.
 
 **Pipeline Components**:
 1. **Object Detection & Segmentation**: Utilizes MagicTouch to detect objects in user-selected regions.
@@ -222,7 +204,7 @@ The object reframing pipeline intelligently detects, extracts, relocates, and re
 - Offset configuration (JSON with landmark adjustments)
 - Object selection coordinates
 - Transform parameters for translation
-- Optional mask for region-specific processing
+- Mask for subject processing
    
 **Output**:
 - Pose-corrected, reframed image maintaining visual coherence
@@ -240,16 +222,13 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 
 **Pipeline Components** (`backend/ml_models/relighting.py`):
 1. **Semantic Understanding**: Analyzes image composition
-2. **Light Configuration**: Accepts user-defined light positions, intensity, and color
+2. **Light Configuration**: Accepts user-defined light positions, and intensity
 3. **Environment Map Generation**: Creates environment maps based on config
-4. **Neural Relighting**: MiGAN model applies learned relighting transformations
+4. **Neural Relighting**: Model applies learned relighting transformations
 
 **Input Parameters**:
 - Original image
-- Light configuration (JSON with light properties):
-  - Light positions
-  - Intensity values
-  - Color temperature
+- Light configuration (JSON with light properties)
 - Mask for object
 
 **Output**:
@@ -258,7 +237,7 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 **Performance Considerations**:
 - Model inference: under 10 seconds for 1024x1024 images
 - GPU acceleration recommended for production use
-- Memory requirement: ~GB VRAM for batch processing
+- Memory requirement: Under 8GB VRAM
 
 ## Compute Profile and Resource Requirements
 
