@@ -95,29 +95,18 @@ class PoseCorrectionPipeline:
         self.sam.eval()
         self.sam_predictor = SamPredictor(self.sam)
         
-        # 4. Load Diffusers/ControlNet
+        # Load Diffusers/ControlNet
         print("Loading ControlNet & Stable Diffusion...")
         self.controlnet = ControlNetModel.from_pretrained(
             "lllyasviel/control_v11p_sd15_openpose", 
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32
         )
 
-        # print("Loading Safety Checker...")
-        # self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-        #     "CompVis/stable-diffusion-safety-checker", 
-        #     torch_dtype=torch.float16
-        # )
-        # self.feature_extractor = CLIPImageProcessor.from_pretrained(
-        #     "openai/clip-vit-base-patch32"
-        # )
-
         self.pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             "Lykon/dreamshaper-8-inpainting", 
             controlnet=self.controlnet, 
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32, 
-            # safety_checker=self.safety_checker,
             safety_checker=None
-            # feature_extractor=self.feature_extractor
         ).to(self.device)
         self.pipe.scheduler = UniPCMultistepScheduler.from_config(self.pipe.scheduler.config)
         
