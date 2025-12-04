@@ -246,6 +246,7 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 The relighting pipeline dynamically adjusts lighting conditions in images with customizable light configurations.
 
 **Pipeline Components**:
+
 1. **Object segmentation**: Segments the object from the image based on user input
 2. **Light Configuration**: Accepts user-defined light positions, and intensity
 3. **Environment Map Generation**: Creates environment maps based on config
