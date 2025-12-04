@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../theme/liquid_glass_theme.dart';
 import '../services/suggestions_service.dart';
+import '../services/semantic_router_service.dart';
+import 'dart:async';
 
 enum EditorTool {
   crop("assets/icons/transform.svg", "Transform"),
@@ -58,6 +60,10 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   bool _isLoadingSuggestions = false;
   bool _isTyping = false;
   final TextEditingController _chatController = TextEditingController();
+  final SemanticRouterService _semanticRouterService = SemanticRouterService();
+  Timer? _actionTimer;
+  bool _isActionPending = false;
+  int _countdownSeconds = 0;
 
   Future<void> _loadSuggestions() async {
     if (_isLoadingSuggestions) return;
@@ -111,6 +117,8 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   @override
   void dispose() {
     _chatController.dispose();
+    _actionTimer?.cancel();
+    _semanticRouterService.dispose();
     super.dispose();
   }
 
@@ -327,9 +335,9 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
                               padding: const EdgeInsets.only(left: 8.0),
                               child: GestureDetector(
                                 onTap: () {
-                                  // TODO: Implement send action
+                                  if (_isActionPending) return;
                                   HapticFeedback.mediumImpact();
-                                  _chatController.clear();
+                                  _handleChatSubmit();
                                 },
                                 child: Container(
                                   width: 36,
@@ -358,6 +366,94 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         ],
       ),
     );
+  }
+
+  Future<void> _handleChatSubmit() async {
+    final prompt = _chatController.text.trim();
+    if (prompt.isEmpty) return;
+
+    _chatController.clear();
+    FocusScope.of(context).unfocus();
+    
+    // Show analyzing state
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Analyzing prompt...'),
+        duration: Duration(milliseconds: 1000),
+      ),
+    );
+
+    try {
+      final action = await _semanticRouterService.routePrompt(prompt);
+
+      if (action == EditorAction.diffusion) {
+        // TODO: Integrate with diffusion model
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sending to Diffusion Model...')),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      // Handle workflow actions with delay
+      setState(() {
+        _isActionPending = true;
+        _countdownSeconds = 3;
+      });
+
+      final actionName = action == EditorAction.relight ? 'Relight' : 'Reframe';
+      
+      // Show countdown snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Text('Starting $actionName in $_countdownSeconds...'),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  _actionTimer?.cancel();
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  setState(() => _isActionPending = false);
+                },
+                child: const Text('CANCEL', style: TextStyle(color: Colors.amber)),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      _actionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        setState(() {
+          _countdownSeconds--;
+        });
+
+        if (_countdownSeconds <= 0) {
+          timer.cancel();
+          setState(() => _isActionPending = false);
+          
+          // Execute action
+          if (action == EditorAction.relight) {
+            widget.toolCallbacks[EditorTool.relight]?.call();
+          } else if (action == EditorAction.reframe) {
+            widget.toolCallbacks[EditorTool.reframe]?.call();
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('Error routing prompt: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error analyzing prompt: $e')),
+        );
+      }
+    }
   }
 
   @override
