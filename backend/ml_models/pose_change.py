@@ -9,8 +9,8 @@ import requests
 from PIL import Image
 from io import BytesIO
 
-from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
-from transformers import CLIPImageProcessor
+# from diffusers.pipelines.stable_diffusion import StableDiffusionSafetyChecker
+# from transformers import CLIPImageProcessor
 
 from mobile_sam import sam_model_registry, SamPredictor
 from diffusers import StableDiffusionControlNetInpaintPipeline, ControlNetModel, UniPCMultistepScheduler
@@ -105,21 +105,22 @@ class PoseCorrectionPipeline:
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32
         )
 
-        print("Loading Safety Checker...")
-        self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
-            "CompVis/stable-diffusion-safety-checker", 
-            torch_dtype=torch.float16
-        )
-        self.feature_extractor = CLIPImageProcessor.from_pretrained(
-            "openai/clip-vit-base-patch32"
-        )
+        # print("Loading Safety Checker...")
+        # self.safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+        #     "CompVis/stable-diffusion-safety-checker", 
+        #     torch_dtype=torch.float16
+        # )
+        # self.feature_extractor = CLIPImageProcessor.from_pretrained(
+        #     "openai/clip-vit-base-patch32"
+        # )
 
         self.pipe = StableDiffusionControlNetInpaintPipeline.from_pretrained(
             "Lykon/dreamshaper-8-inpainting", 
             controlnet=self.controlnet, 
             torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32, 
-            safety_checker=self.safety_checker,
-            feature_extractor=self.feature_extractor
+            # safety_checker=self.safety_checker,
+            safety_checker=None
+            # feature_extractor=self.feature_extractor
         ).to(self.device)
         self.pipe.scheduler = UniPCMultistepScheduler.from_config(self.pipe.scheduler.config)
         
@@ -295,12 +296,16 @@ class PoseCorrectionPipeline:
         Args:
             image_input: str (path) or PIL.Image
             offset_config: List containing exactly 7 elements:
-                0. RIGHT_WRIST_OFFSET (x, y)
-                1. RIGHT_ELBOW_OFFSET (x, y)
-                2. LEFT_WRIST_OFFSET (x, y)
-                3. LEFT_ELBOW_OFFSET (x, y)
-                4. RIGHT_HIP_OFFSET (x, y)
-                5. LEFT_HIP_OFFSET (x, y)
+                0. RIGHT_WRIST (x, y)
+                1. RIGHT_ELBOW (x, y)
+                2. LEFT_WRIST (x, y)
+                3. LEFT_ELBOW (x, y)
+                4. RIGHT_HIP (x, y)
+                5. LEFT_HIP (x, y)
+                6. RIGHT_KNEE (x,y)
+                7. LEFT KNEE
+                8. RIGHT_ANKLE
+                9. LEFT_ANKLE
         
         Returns:
             PIL.Image of the result
@@ -314,6 +319,10 @@ class PoseCorrectionPipeline:
             LEFT_ELBOW = tuple(offset_config[3])
             RIGHT_HIP = tuple(offset_config[4])
             LEFT_HIP = tuple(offset_config[5])
+            RIGHT_KNEE = tuple(offset_config[6])
+            LEFT_KNEE = tuple(offset_config[7])
+            RIGHT_ANKLE = tuple(offset_config[8])
+            LEFT_ANKLE = tuple(offset_config[9])
         except (IndexError, ValueError) as e:
             raise ValueError("Invalid offset_config format. Expected list of length 7.") from e
 
@@ -333,7 +342,12 @@ class PoseCorrectionPipeline:
         LEFT_ELBOW = self.map_coords_to_model_space(LEFT_ELBOW[0], LEFT_ELBOW[1], orig_w, orig_h)
         RIGHT_HIP = self.map_coords_to_model_space(RIGHT_HIP[0], RIGHT_HIP[1], orig_w, orig_h)
         LEFT_HIP = self.map_coords_to_model_space(LEFT_HIP[0], LEFT_HIP[1], orig_w, orig_h)
-
+        
+        RIGHT_KNEE = self.map_coords_to_model_space(RIGHT_KNEE[0], RIGHT_KNEE[1], orig_w, orig_h)
+        LEFT_KNEE = self.map_coords_to_model_space(LEFT_KNEE[0], LEFT_KNEE[1], orig_w, orig_h)
+        RIGHT_ANKLE = self.map_coords_to_model_space(RIGHT_ANKLE[0], RIGHT_ANKLE[1], orig_w, orig_h)
+        LEFT_ANKLE = self.map_coords_to_model_space(LEFT_ANKLE[0], LEFT_ANKLE[1], orig_w, orig_h)
+        
         original_image = self._make_square(raw_image, 512)
         src_np = np.array(original_image)
         
@@ -343,7 +357,7 @@ class PoseCorrectionPipeline:
         
 
         def axis_zero(diff):
-            return 0 if abs(diff) < 10 else diff
+            return 0 if abs(diff) < 12 else diff
 
         # RIGHT WRIST
         dx = RIGHT_WRIST[0] - kps_old[10][0]
@@ -375,6 +389,22 @@ class PoseCorrectionPipeline:
         dy = LEFT_HIP[1] - kps_old[11][1]
         LEFT_HIP_OFFSET = (axis_zero(dx), axis_zero(dy))
 
+        # RIGHT KNEE (14)
+        dx = RIGHT_KNEE[0] - kps_old[14][0]; dy = RIGHT_KNEE[1] - kps_old[14][1]
+        RIGHT_KNEE_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # RIGHT ANKLE (16)
+        dx = RIGHT_ANKLE[0] - kps_old[16][0]; dy = RIGHT_ANKLE[1] - kps_old[16][1]
+        RIGHT_ANKLE_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # LEFT KNEE (13)
+        dx = LEFT_KNEE[0] - kps_old[13][0]; dy = LEFT_KNEE[1] - kps_old[13][1]
+        LEFT_KNEE_OFFSET = (axis_zero(dx), axis_zero(dy))
+
+        # LEFT ANKLE (15)
+        dx = LEFT_ANKLE[0] - kps_old[15][0]; dy = LEFT_ANKLE[1] - kps_old[15][1]
+        LEFT_ANKLE_OFFSET = (axis_zero(dx), axis_zero(dy))
+
         # --- 3. Segmentation ---
         person_mask = self._get_person_mask(src_np, kps_old)
         
@@ -401,6 +431,22 @@ class PoseCorrectionPipeline:
         if LEFT_ELBOW_OFFSET != (0, 0):
             kps_new[7][0] += LEFT_ELBOW_OFFSET[0]
             kps_new[7][1] += LEFT_ELBOW_OFFSET[1]
+        
+        if RIGHT_KNEE_OFFSET != (0, 0):
+            kps_new[14][0] += RIGHT_KNEE_OFFSET[0]; kps_new[14][1] += RIGHT_KNEE_OFFSET[1]
+            redraw_right_leg = True
+
+        if RIGHT_ANKLE_OFFSET != (0, 0):
+            kps_new[16][0] += RIGHT_ANKLE_OFFSET[0]; kps_new[16][1] += RIGHT_ANKLE_OFFSET[1]
+            redraw_right_leg = True
+            
+        if LEFT_KNEE_OFFSET != (0, 0):
+            kps_new[13][0] += LEFT_KNEE_OFFSET[0]; kps_new[13][1] += LEFT_KNEE_OFFSET[1]
+            redraw_left_leg = True
+
+        if LEFT_ANKLE_OFFSET != (0, 0):
+            kps_new[15][0] += LEFT_ANKLE_OFFSET[0]; kps_new[15][1] += LEFT_ANKLE_OFFSET[1]
+            redraw_left_leg = True
             
         # Calc Dynamic Hip Scale if offsets provided
         if (LEFT_HIP_OFFSET!=(0,0) or RIGHT_HIP_OFFSET!=(0,0)):
@@ -452,20 +498,54 @@ class PoseCorrectionPipeline:
                 m = layer[:,:,3] > 0
                 canvas_warped[m] = layer[m, :3]
                 mask_warped_pixels[m] = 255
+        # Handle Legs (NEW LOGIC)
+        if redraw_right_leg:
+            # Upper Leg: Hip(12) -> Knee(14)
+            w_up_R_leg = self._extract_and_warp(src_np, person_mask, kps_old[12], kps_old[14], kps_new[12], kps_new[14], limb_thick, False)
+            # Lower Leg: Knee(14) -> Ankle(16) + Foot Extension
+            w_lo_R_leg = self._extract_and_warp(src_np, person_mask, kps_old[14], kps_old[16], kps_new[14], kps_new[16], limb_thick, True)
+            for layer in [w_up_R_leg, w_lo_R_leg]:
+                m = layer[:,:,3] > 0
+                canvas_warped[m] = layer[m, :3]
+                mask_warped_pixels[m] = 255
+
+        if redraw_left_leg:
+            # Upper Leg: Hip(11) -> Knee(13)
+            w_up_L_leg = self._extract_and_warp(src_np, person_mask, kps_old[11], kps_old[13], kps_new[11], kps_new[13], limb_thick, False)
+            # Lower Leg: Knee(13) -> Ankle(15) + Foot Extension
+            w_lo_L_leg = self._extract_and_warp(src_np, person_mask, kps_old[13], kps_old[15], kps_new[13], kps_new[15], limb_thick, True)
+            for layer in [w_up_L_leg, w_lo_L_leg]:
+                m = layer[:,:,3] > 0
+                canvas_warped[m] = layer[m, :3]
+                mask_warped_pixels[m] = 255
 
         # Erase Old Arms
-        mask_old_arm_area = np.zeros(shape[:2], dtype=np.uint8)
+        mask_old_limb_area = np.zeros(shape[:2], dtype=np.uint8)
+        # Right Arm Erasure
         if (redraw_right_hand or RIGHT_ELBOW_OFFSET != (0, 0)):
             tip = GeometryHelper.get_extended_point(kps_old[8], kps_old[10], 0.5)
-            cv2.line(mask_old_arm_area, (int(kps_old[6][0]), int(kps_old[6][1])), (int(kps_old[8][0]), int(kps_old[8][1])), 255, int(limb_thick*1.4))
-            cv2.line(mask_old_arm_area, (int(kps_old[8][0]), int(kps_old[8][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
+            cv2.line(mask_old_limb_area, (int(kps_old[6][0]), int(kps_old[6][1])), (int(kps_old[8][0]), int(kps_old[8][1])), 255, int(limb_thick*1.4))
+            cv2.line(mask_old_limb_area, (int(kps_old[8][0]), int(kps_old[8][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
 
+        # Left Arm Erasure
         if (redraw_left_hand or LEFT_ELBOW_OFFSET != (0, 0)):
             tip = GeometryHelper.get_extended_point(kps_old[7], kps_old[9], 0.5)
-            cv2.line(mask_old_arm_area, (int(kps_old[5][0]), int(kps_old[5][1])), (int(kps_old[7][0]), int(kps_old[7][1])), 255, int(limb_thick*1.4))
-            cv2.line(mask_old_arm_area, (int(kps_old[7][0]), int(kps_old[7][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
+            cv2.line(mask_old_limb_area, (int(kps_old[5][0]), int(kps_old[5][1])), (int(kps_old[7][0]), int(kps_old[7][1])), 255, int(limb_thick*1.4))
+            cv2.line(mask_old_limb_area, (int(kps_old[7][0]), int(kps_old[7][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
 
-        # --- IMPROVED FILL: Sternum Sampling & Context Aware ---
+        # Right Leg Erasure
+        if redraw_right_leg:
+            tip = GeometryHelper.get_extended_point(kps_old[14], kps_old[16], 0.5)
+            cv2.line(mask_old_limb_area, (int(kps_old[12][0]), int(kps_old[12][1])), (int(kps_old[14][0]), int(kps_old[14][1])), 255, int(limb_thick*1.4))
+            cv2.line(mask_old_limb_area, (int(kps_old[14][0]), int(kps_old[14][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
+
+        # Left Leg Erasure
+        if redraw_left_leg:
+            tip = GeometryHelper.get_extended_point(kps_old[13], kps_old[15], 0.5)
+            cv2.line(mask_old_limb_area, (int(kps_old[11][0]), int(kps_old[11][1])), (int(kps_old[13][0]), int(kps_old[13][1])), 255, int(limb_thick*1.4))
+            cv2.line(mask_old_limb_area, (int(kps_old[13][0]), int(kps_old[13][1])), (int(tip[0]), int(tip[1])), 255, int(limb_thick*1.4))
+
+        # --- FILL: Sternum Sampling & Context Aware ---
         # 1. Background Color
         safe_bg_mask = cv2.dilate(person_mask, np.ones((5,5), np.uint8), iterations=2)
         bg_mask = cv2.bitwise_not(safe_bg_mask)
@@ -508,21 +588,21 @@ class PoseCorrectionPipeline:
         else:
             torso_color = bg_color
 
-        # 3. Apply Dual-Fill
-        # A. Arm overlapping Torso -> Fill with Shirt Color
-        mask_arm_over_body = cv2.bitwise_and(mask_old_arm_area, mask_torso_zone)
-        input_ai_composition[mask_arm_over_body > 0] = torso_color
+# 3. Apply Dual-Fill
+        # A. Limb overlapping Torso -> Fill with Shirt Color
+        mask_limb_over_body = cv2.bitwise_and(mask_old_limb_area, mask_torso_zone)
+        input_ai_composition[mask_limb_over_body > 0] = torso_color
 
-        # B. Arm overlapping Background -> Fill with BG Color
-        mask_arm_over_bg = cv2.subtract(mask_old_arm_area, mask_torso_zone)
-        input_ai_composition[mask_arm_over_bg > 0] = bg_color
+        # B. Limb overlapping Background -> Fill with BG Color
+        mask_limb_over_bg = cv2.subtract(mask_old_limb_area, mask_torso_zone)
+        input_ai_composition[mask_limb_over_bg > 0] = bg_color
 
-        # Paste new arm ON TOP of the filled area
+        # Paste new limbs ON TOP of the filled area
         input_ai_composition[mask_warped_pixels > 0] = canvas_warped[mask_warped_pixels > 0]
         
-        final_inpaint_mask = cv2.bitwise_or(final_inpaint_mask, mask_old_arm_area)
+        final_inpaint_mask = cv2.bitwise_or(final_inpaint_mask, mask_old_limb_area)
         final_inpaint_mask = cv2.bitwise_or(final_inpaint_mask, mask_warped_pixels)
-
+        
         # Handle Hip Masking
         if HIP_SCALE != 1.0:
             lats_mask = np.zeros(shape[:2], dtype=np.uint8)
