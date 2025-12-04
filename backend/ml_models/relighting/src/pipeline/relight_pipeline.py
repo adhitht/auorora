@@ -39,12 +39,12 @@ class RelightPipeline(DiffusionPipeline):
         if isinstance(x, torch.Tensor):
             if x.min() < -1.0 or x.max() > 1.0:
                 raise ValueError("Expected input tensor to have values in the range [-1, 1]")
-        x = kornia.geometry.resize(x. to(torch.float32), (224, 224),
+        x = kornia.geometry.resize(x.to(torch.float32), (224, 224),
                                    interpolation='bicubic', align_corners=True,
-                                   antialias=False). to(dtype=dtype)
+                                   antialias=False).to(dtype=dtype)
         x = (x + 1.) / 2.
         # renormalize according to clip
-        x = kornia.enhance.normalize(x, torch. Tensor([0.48145466, 0.4578275, 0.40821073]),
+        x = kornia.enhance.normalize(x, torch.Tensor([0.48145466, 0.4578275, 0.40821073]),
                                      torch.Tensor([0.26862954, 0.26130258, 0.27577711]))
         return x
 
@@ -140,18 +140,17 @@ class RelightPipeline(DiffusionPipeline):
 
                 #perform CFG
                 if do_cfg:
-                    noise_pred_uncond, noise_pred_text = noise_pred. chunk(2)
+                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                     noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-                
-                latents = self. scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+                latents = self.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
 
-                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self. scheduler.order == 0):
+                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
                     progress_bar.update()
 
 #-------Decoding step------------
-        latents = 1 / self. vae.config.scaling_factor * latents
-        image   = self.vae.decode(latents, return_dict=False)[0]
-        image   = (image / 2 + 0.5).clamp(0, 1)
-        image   = image.cpu().permute(0, 2, 3, 1).float().numpy()
+        latents = 1 / self.vae.config.scaling_factor * latents
+        image = self.vae.decode(latents, return_dict=False)[0]
+        image = (image / 2 + 0.5).clamp(0, 1)
+        image = image.cpu().permute(0, 2, 3, 1).float().numpy()
         return self.numpy_to_pil(image)[0], meta

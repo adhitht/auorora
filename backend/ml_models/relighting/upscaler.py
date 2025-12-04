@@ -32,7 +32,7 @@ def init_upsampler():
     
     if not os.path.isfile(model_path):
         print(f"Model weights were not found at {model_path}")
-        print(f"Please follow the setup instructions in README.MD to download the mdoel weights.")
+        print(f"Please follow the setup instructions in README.MD to download the model weights.")
         return None
     
     

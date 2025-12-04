@@ -20,10 +20,16 @@ def preprocess_object(pil_img: Image.Image, mask: np.ndarray, target_res=256, bg
     the entire image is resized to the target resolution, by padding and resizing.
 
     Args:
-        #TODO
+        pil_img: Input PIL Image
+        mask: Binary mask array indicating object region
+        target_res: Target resolution for output (default: 256)
+        bg_value: Background color value 0-1 (default: 1.0 for white)
+        
+    Returns:
+        tuple: (processed PIL Image, metadata dict)
     """
     #reading, and normalizing the image
-    img = np.array(pil_img).astype(np. float32) / 255.0
+    img = np.array(pil_img).astype(np.float32) / 255.0
     m = (mask > 0).astype(np.float32)[..., None]  
 
 
@@ -33,7 +39,7 @@ def preprocess_object(pil_img: Image.Image, mask: np.ndarray, target_res=256, bg
     obj_only = np.clip(obj_only * 255.0, 0, 255).astype(np.uint8)
 
 
-    #padding andresizing
+    #padding and resizing
     h, w = obj_only.shape[:2]
     max_dim = max(h, w)
     square_img = np.ones((max_dim, max_dim, 3), dtype=np.uint8) * int(bg_value * 255)
@@ -56,41 +62,6 @@ def preprocess_object(pil_img: Image.Image, mask: np.ndarray, target_res=256, bg
 
     return Image.fromarray(obj_only_resized), meta
 
-
-# def upscale_relit(relit_pil: Image.Image, scale_factor: float = 1.0, target_res: int = None, resample=Image.LANCZOS, upscaler_callback=None) -> Image.Image:
-#     """
-#     Upscale the relit object image in a modular way.
-
-#     - If `upscaler_callback` is provided it will be called as
-#       `upscaler_callback(relit_pil, scale_factor=scale_factor, target_res=target_res)`
-#       and its return value will be used (enables integration with Real-ESRGAN or other models).
-#     - Otherwise, a simple PIL resize is used. If `target_res` is provided it overrides
-#       `scale_factor` and the image will be resized to `(target_res, target_res)`.
-
-#     Args:
-#         relit_pil: PIL image produced by the relighting pipeline.
-#         scale_factor: Multiplicative upscale factor (1.0 = no-op).
-#         target_res: Exact square resolution to resize to (optional).
-#         resample: PIL resampling filter to use for simple resize.
-#         upscaler_callback: Optional callable for custom upscaling.
-
-#     Returns:
-#         PIL.Image: Upscaled image.
-#     """
-#     # If user provided a custom upscaler, delegate to it (keeps modularity)
-#     if upscaler_callback is not None:
-#         return upscaler_callback(relit_pil, scale_factor=scale_factor, target_res=target_res)
-
-#     if target_res is not None:
-#         w = h = int(target_res)
-#     else:
-#         if scale_factor is None or float(scale_factor) <= 1.0:
-#             return relit_pil
-#         w, h = relit_pil.size
-#         w = int(round(w * float(scale_factor)))
-#         h = int(round(h * float(scale_factor)))
-
-#     return relit_pil.resize((w, h), resample=resample)
 
 
 def read_hdri_map(hdri_path, target_res=(256, 256), rot_angle=0.0):
@@ -159,7 +130,7 @@ def get_light_direction_from_hdr(env_torch):
     env_np = env_torch.squeeze(0).permute(1, 2, 0).cpu().numpy()
     env_np = (env_np + 1.0) / 2.0 
 
-    #luminiscence, we are using ITU-R BT.709 standard
+    #luminance, we are using ITU-R BT.709 standard
     lum = 0.2126*env_np[:,:,0] + 0.7152*env_np[:,:,1] + 0.0722*env_np[:,:,2]
 
     #finding location of brightest spot
