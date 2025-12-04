@@ -11,8 +11,6 @@ Adobe Image Editing Suite is a full-stack application designed to provide image 
 - **Inpainting**: Remove unwanted objects and intelligently fill regions
 - **Object Detection & Segmentation**: Identify and segment objects in images
 
-The frontend is built with Flutter, supporting iOS, Android, Windows, macOS, and Linux platforms. The backend uses Python with gRPC for efficient communication and leverages state-of-the-art ML models for image processing.
-
 ## File Structure
 
 ```
@@ -180,19 +178,10 @@ adobe/
 
 4. Run on your target platform:
    ```bash
-   # Android
+   flutter run
    flutter run -d <device_id>
-   
-   # iOS
-   flutter run -d <device_id>
-   
-   # Windows
    flutter run -d windows
-   
-   # macOS
    flutter run -d macos
-   
-   # Linux
    flutter run -d linux
    ```
 
@@ -208,7 +197,7 @@ Ensure both backend and frontend are running on the same network. Configure the 
 ### Mobile/Desktop Application Flow
 
 1. **Launch Application**
-   - User opens the Apex image editing application
+   - User opens the image editing application
    - Application loads available editing tools
 
 2. **Image Selection**
@@ -219,22 +208,21 @@ Ensure both backend and frontend are running on the same network. Configure the 
    - Choose from available tools:
      - **Pose Correction**: Adjust human poses
      - **Relighting**: Modify lighting conditions
-     - **Inpainting**: Remove/fill regions
-     - **Background Edit**: Modify background
+     - **Reframing**: Remove/fill regions
 
 4. **Configure Tool Parameters**
    - **For Pose Tool**: 
+     - Choose the object/subject to be edited
      - Adjust pose landmarks by dragging points
-     - Preview changes in real-time
      - Confirm and apply changes
    
    - **For Relighting Tool**:
+     - Choose the object to be relit
      - Select light positions and intensity
      - Adjust color temperature
-     - Preview relit image
      - Apply changes
    
-   - **For Inpainting Tool**:
+   - **For Reframing Tool**:
      - Paint/mark regions to remove
      - Select fill style (inpaint, remove object)
      - Preview result
@@ -250,11 +238,6 @@ Ensure both backend and frontend are running on the same network. Configure the 
    - Maintain edit history for undo/redo
    - User can revert to previous versions
    - Export final edited image
-
-7. **Export**
-   - Save edited image to device storage
-   - Share to social media or messaging apps
-   - Save as project for later editing
 
 ### Backend Processing Pipeline
 
@@ -334,28 +317,26 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 The relighting pipeline dynamically adjusts lighting conditions in images with customizable light configurations.
 
 **Pipeline Components** (`backend/ml_models/relighting.py`):
-1. **Semantic Understanding**: Analyzes image composition and material properties
+1. **Semantic Understanding**: Analyzes image composition
 2. **Light Configuration**: Accepts user-defined light positions, intensity, and color
-3. **Environment Map Generation**: Creates synthetic environment maps based on config
+3. **Environment Map Generation**: Creates environment maps based on config
 4. **Neural Relighting**: MiGAN model applies learned relighting transformations
-5. **Post-processing**: Tone mapping and color correction for natural appearance
 
 **Input Parameters**:
 - Original image
 - Light configuration (JSON with light properties):
-  - Light positions (3D coordinates)
+  - Light positions
   - Intensity values
   - Color temperature
-  - Shadow parameters
-- Optional mask for region-specific relighting
+- Mask for object
 
 **Output**:
 - Relit image with adjusted lighting conditions
 
 **Performance Considerations**:
-- Model inference: 1-3 seconds for 512×512 images
+- Model inference: under 10 seconds for 1024x1024 images
 - GPU acceleration recommended for production use
-- Memory requirement: ~4GB VRAM for batch processing
+- Memory requirement: ~GB VRAM for batch processing
 
 ### Inpainting Pipeline
 
@@ -459,10 +440,6 @@ Frontend Request
 Return to Frontend
 ```
 
-#### 3. Caching Strategy
-- **Model Caching**: Models loaded once at server startup (5-10s overhead)
-- **Request Caching**: Recent requests cached for identical parameters
-- **TTL**: 5 minutes for cache entries to manage memory
 
 #### 4. Adaptive Resolution
 | User Device | Recommended Input Resolution | Output Resolution |
