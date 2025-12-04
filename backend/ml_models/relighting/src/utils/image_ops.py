@@ -266,7 +266,7 @@ def composite_relit(depth_estimator, upsampler, original_pil, relit_pil, mask, m
 
     mask_full = mask.astype(np.uint8)
     if mask_full.shape != (h_orig, w_orig):
-        mask_full = cv2.resize(mask_full, (w_orig, h_orig), interpolation=cv2.INTER_NEAREST)
+        mask_full = cv2.resize(mask_full, (w_orig, h_orig), interpolation=cv2.INTER_LINEAR)
     mask_bin = (mask_full > 0.5).astype(np.uint8)
 
     #estimating depth and light
@@ -346,7 +346,29 @@ def composite_relit(depth_estimator, upsampler, original_pil, relit_pil, mask, m
     for c in range(3):
         comp[:, :, c] *= shadow_layer
 
-    mask_3ch = mask_full[..., None]
+    mask_255 = (mask_full.astype(np.float32) * 255.0).astype(np.uint8)
+    
+    #erosion on mask for better blending
+    kernel = np.ones((3, 3), np.uint8)
+    mask_eroded = cv2.erode(mask_255, kernel, iterations=2)
+    mask_dilated = cv2.dilate(mask_255, kernel, iterations=2)
+    
+    edge_zone = cv2.subtract(mask_dilated, mask_eroded)
+    edge_zone_float = edge_zone.astype(np.float32) / 255.0
+    
+    mask_blur_fine = cv2.GaussianBlur(mask_eroded, (0, 0), sigmaX=0.5, sigmaY=0.5)
+
+    mask_blur_medium = cv2.GaussianBlur(mask_eroded, (0, 0), sigmaX=2.0, sigmaY=2.0)
+    mask_alpha_smooth = mask_blur_fine.astype(np.float32) * (1.0 - edge_zone_float) + \
+                        mask_blur_medium.astype(np.float32) * edge_zone_float
+
+    mask_alpha_smooth = np.clip(mask_alpha_smooth / 255.0, 0.0, 1.0)
+    
+    mask_alpha_smooth = mask_alpha_smooth ** 1.2
+    
+    mask_3ch = mask_alpha_smooth[..., None]
+    
+    #alpha blending
     comp = relit_crop * mask_3ch + comp * (1.0 - mask_3ch)
 
     return Image.fromarray(np.clip(comp * 255.0, 0, 255).astype(np.uint8))
