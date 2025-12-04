@@ -1,6 +1,6 @@
-import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'mobile_bert_service.dart';
+import 'llm_service.dart';
 
 enum EditorAction {
   relight,
@@ -10,76 +10,61 @@ enum EditorAction {
 }
 
 class SemanticRouterService {
-  final MobileBertService _mobileBertService = MobileBertService();
-  
-  // Anchor prompts to define the "center" of each intent
-  static const String _relightAnchorText = "adjust lighting fix shadows change exposure brightness contrast relight image sun";
-  static const String _reframeAnchorText = "change pose move person crop image resize scale rotate composition frame";
-  
-  List<double>? _relightAnchor;
-  List<double>? _reframeAnchor;
-  
+  final LlmService _llmService = LlmService();
   bool _isInitialized = false;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
-    await _mobileBertService.initialize();
-    
-    // Pre-compute anchor embeddings
-    // In a real app, these could be averaged from multiple examples or pre-computed offline.
-    // Here we compute them on startup.
-    _relightAnchor = await _mobileBertService.getEmbedding(_relightAnchorText);
-    _reframeAnchor = await _mobileBertService.getEmbedding(_reframeAnchorText);
-    
+    await _llmService.initialize();
     _isInitialized = true;
-    debugPrint('SemanticRouterService: Initialized and anchors computed.');
+    debugPrint('SemanticRouterService: Initialized with LLM.');
+  }
+
+  Future<Map<String, dynamic>> generateCommand(String prompt) async {
+    if (!_isInitialized) await initialize();
+    
+    String? jsonString;
+    try {
+      jsonString = await _llmService.generateResponse(prompt);
+      debugPrint('LLM Response: $jsonString');
+      
+      // Extract JSON if wrapped in markdown code blocks
+      String cleanJson = jsonString!;
+      if (jsonString.contains('```json')) {
+        cleanJson = jsonString.split('```json')[1].split('```')[0].trim();
+      } else if (jsonString.contains('```')) {
+        cleanJson = jsonString.split('```')[1].split('```')[0].trim();
+      }
+      
+      debugPrint('SemanticRouterService: Generated command: $cleanJson');
+      final Map<String, dynamic> result = jsonDecode(cleanJson);
+      result['raw_output'] = jsonString;
+      return result;
+    } catch (e) {
+      debugPrint('Error generating command from LLM: $e');
+      return {
+        'action': 'unknown', 
+        'error': e.toString(),
+        'raw_output': jsonString ?? 'No output',
+      };
+    }
   }
 
   Future<EditorAction> routePrompt(String prompt) async {
-    if (!_isInitialized) await initialize();
+    // This is now redundant as generateCommand handles everything,
+    // but kept for compatibility if needed.
+    // We can just peek at the command.
+    final command = await generateCommand(prompt);
+    final actionStr = command['action'] as String?;
     
-    final promptEmbedding = await _mobileBertService.getEmbedding(prompt);
+    if (actionStr == 'relight') return EditorAction.relight;
+    if (actionStr == 'reframe') return EditorAction.reframe;
     
-    final relightScore = _cosineSimilarity(promptEmbedding, _relightAnchor!);
-    final reframeScore = _cosineSimilarity(promptEmbedding, _reframeAnchor!);
-    
-    debugPrint('Semantic Router Scores - Relight: $relightScore, Reframe: $reframeScore');
-    
-    // Threshold for matching
-    // Cosine similarity is between -1 and 1.
-    // For BERT embeddings, unrelated sentences might still have high similarity (e.g. 0.6-0.7).
-    // We need to experiment, but let's pick the max and check if it's significant.
-    
-    const double threshold = 0.65; // Conservative threshold
-    
-    if (relightScore > reframeScore && relightScore > threshold) {
-      return EditorAction.relight;
-    } else if (reframeScore > relightScore && reframeScore > threshold) {
-      return EditorAction.reframe;
-    } else {
-      // If neither is a strong match, assume it's a creative generation request
-      return EditorAction.diffusion;
-    }
-  }
-
-  double _cosineSimilarity(List<double> vecA, List<double> vecB) {
-    double dotProduct = 0.0;
-    double normA = 0.0;
-    double normB = 0.0;
-    
-    for (int i = 0; i < vecA.length; i++) {
-      dotProduct += vecA[i] * vecB[i];
-      normA += vecA[i] * vecA[i];
-      normB += vecB[i] * vecB[i];
-    }
-    
-    if (normA == 0 || normB == 0) return 0.0;
-    
-    return dotProduct / (sqrt(normA) * sqrt(normB));
+    return EditorAction.diffusion;
   }
   
   void dispose() {
-    _mobileBertService.dispose();
+    _llmService.dispose();
   }
 }
+

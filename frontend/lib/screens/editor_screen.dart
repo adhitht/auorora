@@ -13,6 +13,7 @@ import '../widgets/editor_top_bar.dart';
 import '../widgets/editor_bottom_bar.dart';
 import '../widgets/crop_editor_widget.dart';
 import '../widgets/relight_editor_widget.dart';
+import '../widgets/relight_editor_controller.dart';
 import '../widgets/reframe_editor_widget.dart';
 import '../widgets/history_viewer_dialog.dart';
 import '../widgets/privacy_notice_dialog.dart';
@@ -50,6 +51,7 @@ class _EditorScreenState extends State<EditorScreen>
   final SegmentationService _segmentationService = SegmentationService();
   final NotificationService _notificationService = NotificationService(); // Initialize NotificationService
   late final EditHistoryManager _historyManager;
+  final RelightEditorController _relightController = RelightEditorController();
 
   @override
   void initState() {
@@ -126,6 +128,7 @@ class _EditorScreenState extends State<EditorScreen>
     _sigLipService.dispose();
     _segmentationService.dispose();
     _notificationService.dispose(); // Dispose NotificationService
+    _relightController.dispose();
     super.dispose();
   }
 
@@ -606,6 +609,8 @@ class _EditorScreenState extends State<EditorScreen>
                 EditorTool.chat: () =>
                     _handleToolSelection(EditorTool.chat),
               },
+              relightController: _relightController,
+              notificationService: _notificationService,
             ),
           ),
 
@@ -755,6 +760,7 @@ class _EditorScreenState extends State<EditorScreen>
                       ).showSnackBar(SnackBar(content: Text(message)));
                     } catch (_) {}
                   },
+                  controller: _relightController,
                 ),
               )
             : _isReframeMode

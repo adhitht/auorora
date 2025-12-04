@@ -5,7 +5,7 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 class MobileBertService {
   static const String _modelPath = 'assets/models/mobilebert.tflite';
   static const String _vocabPath = 'assets/models/vocab.txt';
-  static const int _maxSeqLen = 128;
+  static const int _maxSeqLen = 384; // Updated to match model expectation (likely 384)
 
   Interpreter? _interpreter;
   Map<String, int>? _vocab;
@@ -33,6 +33,16 @@ class MobileBertService {
       // tflite_flutter 0.10+ supports loading from asset directly via Interpreter.fromAsset
       _interpreter = await Interpreter.fromAsset(_modelPath);
       
+      // Debug Input/Output shapes
+      debugPrint('MobileBERT Input Tensors:');
+      for (var i = 0; i < _interpreter!.getInputTensors().length; i++) {
+        debugPrint('Input $i: ${_interpreter!.getInputTensor(i).shape} type: ${_interpreter!.getInputTensor(i).type}');
+      }
+      debugPrint('MobileBERT Output Tensors:');
+      for (var i = 0; i < _interpreter!.getOutputTensors().length; i++) {
+        debugPrint('Output $i: ${_interpreter!.getOutputTensor(i).shape} type: ${_interpreter!.getOutputTensor(i).type}');
+      }
+
       _isInitialized = true;
       debugPrint('MobileBertService: Initialized. Vocab size: ${_vocab!.length}');
     } catch (e) {
@@ -123,7 +133,7 @@ class MobileBertService {
       inputMask[i] = 1;
     }
 
-    // Reshape to [1, 128]
+    // Reshape to [1, 384]
     final inputIdsTensor = [inputIds];
     final inputMaskTensor = [inputMask];
     final segmentIdsTensor = [segmentIds];
@@ -141,36 +151,36 @@ class MobileBertService {
     // Standard BERT TFLite often has 1 output or 2.
     // We'll assume output 0 is the sequence or pooled.
     
-    // Let's inspect signature if possible, but for now we'll try to run with map.
-    
     // Inputs map (indices depend on model export)
     // Usually: 0=Ids, 1=Mask, 2=Segment (or similar)
     final inputs = [inputIdsTensor, inputMaskTensor, segmentIdsTensor];
     
     // Output buffer
-    // MobileBERT embedding size is usually 512 (bottleneck) or 128 (if tiny).
-    // The file size (100MB) suggests full MobileBERT, so likely 512.
-    final outputBuffer = List.filled(1 * _maxSeqLen * 512, 0.0).reshape([1, _maxSeqLen, 512]);
+    // The error "interpreter returned output of shape: [1, 384]" indicates the model output is [1, 384].
+    // This is likely the pooled embedding with hidden size 384, or a specific output format.
+    // We will use this directly as the embedding.
     
-    // We might need to adjust inputs based on model signature.
-    // Since we can't inspect easily without running, we'll try standard 3-input.
+    final outputBuffer = List.filled(1 * 384, 0.0).reshape([1, 384]);
     
     final outputs = {0: outputBuffer};
     
     try {
+      if (_interpreter == null) {
+        throw Exception('Interpreter is null despite initialization');
+      }
       _interpreter!.runForMultipleInputs(inputs, outputs);
     } catch (e) {
-      // If run fails, it might be input order or shapes.
-      // For this implementation, we assume standard BERT inputs.
       debugPrint('MobileBertService: Inference failed: $e');
+      debugPrint('Inputs: $inputs');
+      debugPrint('Outputs: $outputs');
       rethrow;
     }
 
-    // Extract [CLS] token embedding (Index 0 of sequence)
-    final sequenceOutput = outputBuffer[0] as List<List<double>>;
-    final clsEmbedding = sequenceOutput[0]; // [512]
+    // Extract embedding
+    // The output is already [1, 384], so we just take the first (and only) batch item.
+    final embedding = outputBuffer[0] as List<double>;
 
-    return clsEmbedding;
+    return embedding;
   }
 
   void dispose() {

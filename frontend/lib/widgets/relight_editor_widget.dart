@@ -18,6 +18,7 @@ import 'light_paint_stroke.dart';
 import 'light_paint_painter.dart';
 import 'liquid_color_slider.dart';
 import 'liquid_slider.dart';
+import 'relight_editor_controller.dart';
 import 'package:aurora/models/relighting_model.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -58,15 +59,17 @@ class RelightEditorWidget extends StatefulWidget {
   final Function(File relitFile, Map<String, dynamic> adjustments) onApply;
   final Function(String message, bool isSuccess)? onShowMessage;
   final Function(Widget Function() builder)? onControlPanelReady;
+  final RelightEditorController? controller;
 
   const RelightEditorWidget({
     super.key,
     required this.imageFile,
-    required this.segmentationService, // Add required parameter
+    required this.segmentationService,
     required this.onCancel,
     required this.onApply,
     this.onShowMessage,
     this.onControlPanelReady,
+    this.controller,
   });
 
   @override
@@ -131,6 +134,22 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onControlPanelReady?.call(buildControlPanel);
     });
+    
+    if (widget.controller != null) {
+      widget.controller!.addListener(_onControllerChanged);
+      // Initialize with controller strokes if any
+      if (widget.controller!.strokes.isNotEmpty) {
+        _lightPaintStrokes = List.from(widget.controller!.strokes);
+      }
+    }
+  }
+
+  void _onControllerChanged() {
+    if (mounted) {
+      setState(() {
+        _lightPaintStrokes = List.from(widget.controller!.strokes);
+      });
+    }
   }
 
   Future<void> _initialize() async {
@@ -147,6 +166,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     _panelAnimationController.dispose();
     _zoomAnimationController.dispose();
     _transformationController.dispose();
+    widget.controller?.removeListener(_onControllerChanged);
     super.dispose();
   }
 
@@ -743,6 +763,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                                                 type: LightPaintType.spot,
                                               );
                                             });
+                                            widget.controller?.updateStrokes(_lightPaintStrokes);
                                           }
                                         },
                                         onPanEnd: (details) =>

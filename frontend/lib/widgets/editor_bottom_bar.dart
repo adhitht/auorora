@@ -7,6 +7,9 @@ import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../theme/liquid_glass_theme.dart';
 import '../services/suggestions_service.dart';
 import '../services/semantic_router_service.dart';
+import '../services/pipeline_executor.dart';
+import '../services/notification_service.dart';
+import 'relight_editor_controller.dart';
 import 'dart:async';
 
 enum EditorTool {
@@ -37,7 +40,12 @@ class EditorBottomBar extends StatefulWidget {
     this.detectedTags,
     this.dismissedSuggestions,
     this.onSuggestionSelected,
+    this.relightController,
+    required this.notificationService,
   });
+
+  final RelightEditorController? relightController;
+  final NotificationService notificationService;
 
   @override
   State<EditorBottomBar> createState() => _EditorBottomBarState();
@@ -61,6 +69,8 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   bool _isTyping = false;
   final TextEditingController _chatController = TextEditingController();
   final SemanticRouterService _semanticRouterService = SemanticRouterService();
+  final PipelineExecutor _pipelineExecutor = PipelineExecutor();
+  
   Timer? _actionTimer;
   bool _isActionPending = false;
   int _countdownSeconds = 0;
@@ -374,24 +384,52 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
 
     _chatController.clear();
     FocusScope.of(context).unfocus();
-    
     // Show analyzing state
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Analyzing prompt...'),
-        duration: Duration(milliseconds: 1000),
+    widget.notificationService.show(
+      'Analyzing prompt...',
+      type: NotificationType.info,
+      child: const SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Colors.white,
+        ),
       ),
+      duration: Duration.zero, // Keep until replaced
     );
 
     try {
-      final action = await _semanticRouterService.routePrompt(prompt);
+      final command = await _semanticRouterService.generateCommand(prompt);
+      final actionStr = command['action'] as String?;
+      final rawOutput = command['raw_output'] as String? ?? 'No output';
+      final error = command['error'] as String?;
+      
+      String message = 'Action: $actionStr\nRaw: $rawOutput';
+      if (error != null) {
+        message += '\nError: $error';
+      }
+      
+      debugPrint('DEBUG: Action determined: $actionStr');
+      debugPrint('DEBUG: Raw output: $rawOutput');
+
+      await Future.delayed(const Duration(seconds: 2));
+      
+      EditorAction action;
+      if (actionStr == 'relight') {
+        action = EditorAction.relight;
+      } else if (actionStr == 'reframe') {
+        action = EditorAction.reframe;
+      } else {
+        action = EditorAction.diffusion;
+      }
 
       if (action == EditorAction.diffusion) {
         // TODO: Integrate with diffusion model
         if (mounted) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sending to Diffusion Model...')),
+          widget.notificationService.show(
+            'Sending to Diffusion Model...',
+            type: NotificationType.info,
           );
         }
         return;
@@ -399,7 +437,6 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
 
       if (!mounted) return;
 
-      // Handle workflow actions with delay
       setState(() {
         _isActionPending = true;
         _countdownSeconds = 3;
@@ -407,26 +444,18 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
 
       final actionName = action == EditorAction.relight ? 'Relight' : 'Reframe';
       
-      // Show countdown snackbar
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Text('Starting $actionName in $_countdownSeconds...'),
-              const Spacer(),
-              TextButton(
-                onPressed: () {
-                  _actionTimer?.cancel();
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  setState(() => _isActionPending = false);
-                },
-                child: const Text('CANCEL', style: TextStyle(color: Colors.amber)),
-              ),
-            ],
-          ),
-          duration: const Duration(seconds: 3),
+      widget.notificationService.show(
+        'Starting $actionName in $_countdownSeconds...',
+        type: NotificationType.info,
+        child: TextButton(
+          onPressed: () {
+            _actionTimer?.cancel();
+            widget.notificationService.dismiss();
+            setState(() => _isActionPending = false);
+          },
+          child: const Text('CANCEL', style: TextStyle(color: Colors.amber)),
         ),
+        duration: const Duration(seconds: 4),
       );
 
       _actionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -438,9 +467,13 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
           timer.cancel();
           setState(() => _isActionPending = false);
           
-          // Execute action
           if (action == EditorAction.relight) {
             widget.toolCallbacks[EditorTool.relight]?.call();
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (widget.relightController != null) {
+                _pipelineExecutor.execute(command, widget.relightController!);
+              }
+            });
           } else if (action == EditorAction.reframe) {
             widget.toolCallbacks[EditorTool.reframe]?.call();
           }
