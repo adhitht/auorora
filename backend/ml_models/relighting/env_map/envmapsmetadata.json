@@ -1,0 +1,110 @@
+[
+    {
+        "id": "envmap1.exr",
+        "light_azimuth": 106.875,
+        "light_elevation": 33.75,
+        "max_intensity": 12.574300765991211,
+        "ambient_rgb": [
+            0.31786322593688965,
+            0.4116481840610504,
+            0.5522924661636353
+        ],
+        "position_tag": "side"
+    },
+    {
+        "id": "envmap2.exr",
+        "light_azimuth": -25.3125,
+        "light_elevation": 70.3125,
+        "max_intensity": 12.459299087524414,
+        "ambient_rgb": [
+            0.31372368335723877,
+            0.355547696352005,
+            0.4166533052921295
+        ],
+        "position_tag": "top"
+    },
+    {
+        "id": "envmap3.exr",
+        "light_azimuth": -107.578125,
+        "light_elevation": 14.765625,
+        "max_intensity": 26.858348846435547,
+        "ambient_rgb": [
+            0.384138286113739,
+            0.37377479672431946,
+            0.35793349146842957
+        ],
+        "position_tag": "side"
+    },
+    {
+        "id": "envmap4.exr",
+        "light_azimuth": -40.78125,
+        "light_elevation": 48.515625,
+        "max_intensity": 5.972077369689941,
+        "ambient_rgb": [
+            0.18049906194210052,
+            0.21918423473834991,
+            0.08973827213048935
+        ],
+        "position_tag": "top"
+    },
+    {
+        "id": "envmap5.exr",
+        "light_azimuth": -90.703125,
+        "light_elevation": 21.796875,
+        "max_intensity": 713.499755859375,
+        "ambient_rgb": [
+            0.2653617858886719,
+            0.2865166962146759,
+            0.3198104202747345
+        ],
+        "position_tag": "side"
+    },
+    {
+        "id": "envmap6.exr",
+        "light_azimuth": 77.34375,
+        "light_elevation": 48.1640625,
+        "max_intensity": 61.34646224975586,
+        "ambient_rgb": [
+            0.05960136651992798,
+            0.047777943313121796,
+            0.04197261482477188
+        ],
+        "position_tag": "top"
+    },
+    {
+        "id": "envmap7.exr",
+        "light_azimuth": 131.8359375,
+        "light_elevation": 34.1015625,
+        "max_intensity": 322.0710144042969,
+        "ambient_rgb": [
+            0.26459038257598877,
+            0.15302889049053192,
+            0.0748598501086235
+        ],
+        "position_tag": "side"
+    },
+    {
+        "id": "envmap8.exr",
+        "light_azimuth": -0.3515625,
+        "light_elevation": 5.2734375,
+        "max_intensity": 12503.1337890625,
+        "ambient_rgb": [
+            0.09088761359453201,
+            0.10345650464296341,
+            0.10231073945760727
+        ],
+        "position_tag": "side"
+    },
+    {
+        "id": "envmap9.exr",
+        "light_azimuth": -27.7734375,
+        "light_elevation": 15.8203125,
+        "max_intensity": 1871.86328125,
+        "ambient_rgb": [
+            0.15201658010482788,
+            0.16579413414001465,
+            0.17629700899124146
+        ],
+        "position_tag": "side"
+    }
+]
