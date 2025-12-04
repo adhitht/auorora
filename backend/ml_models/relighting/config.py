@@ -12,12 +12,12 @@ class Config:
         with open(path, "r") as f:
             cfg = yaml.safe_load(f)
 
-        # dynamic CUDA/dtype setup
+        #dynamic CUDA/dtype setup
         self.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
         self.DTYPE = torch.float16 if "cuda" in self.DEVICE else torch.float32
         self.DEVICE_SAM2 = cfg.get("device_sam2", self.DEVICE)
 
-        # object settings
+        #object settings
         self.TARGET_RES = cfg["target_resolution"]
         self.BG_COLOR = cfg["background_color"]
 
@@ -47,6 +47,10 @@ class Config:
             
         self.ENV_MAP_LIGHT_THRESHOLD = env_map_cfg.get("light_source_threshold", 20.0)
         self.ENV_MAP_ENABLE_CUSTOM = env_map_cfg.get("enable_custom_generation", True)
+        
+        # Upsampler config
+        upsampler_cfg = cfg.get("upsampler", {})
+        self.UPSAMPLER_USE_TILING = upsampler_cfg.get("use_tiling", False)
 
     def __repr__(self):
         return f"<Config DEVICE={self.DEVICE}, DTYPE={self.DTYPE}, TARGET_RES={self.TARGET_RES}>"

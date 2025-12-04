@@ -199,7 +199,7 @@ def estimate_light_source_strength(env_torch):
     return shadow_strength
 
 
-def composite_with_shadows(depth_estimator, upsampler, original_pil, relit_pil, mask, meta, hdri_path, rot_angle, shadow_reach=0.4, debug=False, upscale_factor=2, use_realesrgan=True):
+def composite_relit(depth_estimator, upsampler, original_pil, relit_pil, mask, meta, hdri_path, rot_angle, shadow_reach=0.4, debug=False, upscale_factor=2, use_realesrgan=True):
     """
     Composites the relit object back into the original scene with automatic 2x upscaling.
     
@@ -229,41 +229,35 @@ def composite_with_shadows(depth_estimator, upsampler, original_pil, relit_pil, 
 
     original_np = np.array(original_pil)
     
-    # Upscale the relit image if requested
     if upscale_factor > 1:
         if use_realesrgan and upsampler is not None:
             try:
-                print(f"🚀 Upscaling {upscale_factor}x with Real-ESRGAN...")
                 relit_np = np.array(relit_pil)
                 upscaled_np, _ = upsampler.enhance(relit_np, outscale=upscale_factor)
                 relit_pil = Image.fromarray(upscaled_np)
-                print(f"✓ Upscaled to {relit_pil.size}")
             except Exception as e:
-                print(f"⚠️ Real-ESRGAN failed: {e}, using LANCZOS")
-                import traceback
-                traceback.print_exc()
+                print(f"[WARNING]: Real-ESRGAN failed: {e}, using LANCZOS")
                 new_size = (relit_pil.width * upscale_factor, relit_pil.height * upscale_factor)
                 relit_pil = relit_pil.resize(new_size, Image.Resampling.LANCZOS)
         else:
             new_size = (relit_pil.width * upscale_factor, relit_pil.height * upscale_factor)
             relit_pil = relit_pil.resize(new_size, Image.Resampling.LANCZOS)
             if upsampler is None:
-                print(f"ℹ️ Using LANCZOS for {upscale_factor}x upscaling")
+                print(f"[WARNING]: Using LANCZOS for {upscale_factor}x upscaling")
     
     relit_np = np.array(relit_pil).astype(np.float32) / 255.0
     
-    # Resize to match original dimensions (after upscaling)
+    #resize to match original dimension
     target_max_dim = max_dim * upscale_factor
     relit_square = cv2.resize(relit_np, (target_max_dim, target_max_dim), interpolation=cv2.INTER_LANCZOS4)
     
-    # Crop to original aspect ratio
+    #crop to original aspect ratio
     target_h_orig = h_orig * upscale_factor
     target_w_orig = w_orig * upscale_factor
     target_top = top * upscale_factor
     target_left = left * upscale_factor
     relit_crop = relit_square[target_top:target_top + target_h_orig, target_left:target_left + target_w_orig]
     
-    # Upscale mask and original image if needed
     if upscale_factor > 1:
         original_pil = original_pil.resize((w_orig * upscale_factor, h_orig * upscale_factor), Image.Resampling.LANCZOS)
         original_np = np.array(original_pil)
@@ -283,10 +277,7 @@ def composite_with_shadows(depth_estimator, upsampler, original_pil, relit_pil, 
     first_target_envir_map, second_target_envir_map = read_hdri_map(
         hdri_path, target_res=(cfg.TARGET_RES, cfg.TARGET_RES), rot_angle=rot_angle
     )
-    # az, alt = get_light_direction_from_hdr(second_target_envir_map, applied_rot_angle=rot_angle)
     az, alt = get_light_direction_from_hdr(second_target_envir_map)
-    
-    # Flip the azimuth to match the horizontally flipped environment map
     az = -az
 
     #shadow strength

@@ -2,7 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:grpc/grpc.dart';
-import 'package:apex/generated/pose.pbgrpc.dart';
+import 'package:aurora/generated/pose.pbgrpc.dart';
 
 class PoseChangingService {
   late PoseChangingServiceClient _stub;

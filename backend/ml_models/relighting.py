@@ -14,7 +14,7 @@ from src.runner.relight_runner import init_models, relight_object
 class RelightingModel:
     def __init__(self):
         """Initialize the relighting pipeline."""
-        print("Initializing Relighting Model...")
+        print("[INFO] : Initializing Relighting Model...")
         self.pipeline, self.upsampler = init_models()
         if self.pipeline is None:
             raise RuntimeError("Failed to initialize relighting pipeline")
@@ -43,7 +43,7 @@ class RelightingModel:
         Returns:
             tuple: (relit_image: PIL Image, mask: numpy array, metadata: dict)
         """
-        # Convert mask to numpy array if it's a PIL Image
+        #convert mask to numpy array if its a PIL Image
         if isinstance(mask, Image.Image):
             mask = np.array(mask.convert("L")) > 127
         

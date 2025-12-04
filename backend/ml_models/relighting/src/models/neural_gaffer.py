@@ -16,7 +16,7 @@ def load_neural_gaffer_unet_weights(unet, checkpoint_folder: str):
 	checkpoint_path = os.path.join(checkpoint_folder, "model.safetensors")
 
 
-	print(f"Loading NG UNet weights: {checkpoint_path}")
+	print(f"[INFO] : Loading NG UNet weights: {checkpoint_path}")
 
 	state_dict = load_file(checkpoint_path)
 	
@@ -31,7 +31,7 @@ def load_neural_gaffer_unet_weights(unet, checkpoint_folder: str):
 		cleaned[k2] = v
 
 	missing, unexpected = unet.load_state_dict(cleaned, strict=False)
-	print(f"✓ Loaded UNet (missing={len(missing)}, unexpected={len(unexpected)})")
+	print(f"[INFO] : Loaded UNet weights for Relighting Pipeline")
 	return unet
 
 
@@ -47,15 +47,14 @@ def build_pipeline():
 	DEVICE = cfg.DEVICE
 	GAFFER_CKPT_DIR = cfg.GAFFER_CKPT_DIR
 
-	print(f"Loading base models from {BASE_MODEL_ID}...")
+	print(f"[INFO] : Loading base models for Relight Pipeline from {BASE_MODEL_ID}.")
 	vae = AutoencoderKL.from_pretrained(BASE_MODEL_ID, subfolder="vae", torch_dtype=DTYPE)
 	unet = UNet2DConditionModel.from_pretrained(BASE_MODEL_ID, subfolder="unet", torch_dtype=DTYPE)
 	sched = DDIMScheduler.from_pretrained(BASE_MODEL_ID, subfolder="scheduler")
 	feat = CLIPImageProcessor.from_pretrained(BASE_MODEL_ID, subfolder="feature_extractor")
 	clip = CLIPVisionModelWithProjection.from_pretrained(BASE_MODEL_ID, subfolder="image_encoder", torch_dtype=DTYPE)
 
-    # --- Replace conv_in to accept 16 channels ---
-    # Official Neural Gaffer modifies conv_in from 8 to 16 channels
+    #modifying conv_in to accept 16 channels as in neural gaffer architecture
 	old_conv = unet.conv_in
 	new_conv = torch.nn.Conv2d(
         in_channels=16,
@@ -69,7 +68,7 @@ def build_pipeline():
         device=old_conv.weight.device
     )
 
-    # Initialize new conv_in: zero except copy original first 8 channels
+    #initialze new conv_in and copy the first 8 channels from previous one
 	with torch.no_grad():
 		torch.nn.init.zeros_(new_conv.weight)
 		new_conv.weight[:, :8, :, :].copy_(old_conv.weight)

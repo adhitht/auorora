@@ -523,8 +523,8 @@ class _ToolButton extends StatelessWidget {
               height: 26,
               colorFilter: ColorFilter.mode(
                 isSelected
-                    ? Colors.white
-                    : Colors.white.withValues(alpha: 0.6),
+                    ? LiquidGlassTheme.bottomBarPrimaryColor
+                    : Colors.white,
                 BlendMode.srcIn,
               ),
             ),
@@ -533,8 +533,8 @@ class _ToolButton extends StatelessWidget {
               label,
               style: GoogleFonts.roboto(
                 color: isSelected
-                    ? Colors.white
-                    : Colors.white.withValues(alpha: 0.6),
+                    ? LiquidGlassTheme.bottomBarPrimaryColor
+                    : Colors.white,
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),

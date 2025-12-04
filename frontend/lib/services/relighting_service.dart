@@ -4,8 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:grpc/grpc.dart';
-import 'package:apex/models/relighting_model.dart';
-import 'package:apex/generated/relighting.pbgrpc.dart';
+import 'package:aurora/models/relighting_model.dart';
+import 'package:aurora/generated/relighting.pbgrpc.dart';
 
 class RelightingService {
   late RelightingServiceClient _stub;
@@ -14,7 +14,6 @@ class RelightingService {
   RelightingService() {
     final host = dotenv.env['GRPC_HOST'] ?? 'localhost';
     final port = dotenv.env['GRPC_PORT'] ?? '50051';
-
 
     _channel = ClientChannel(
       host,

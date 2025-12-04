@@ -1,20 +1,29 @@
-# Adobe Image Editing Suite
+<div align="center">
+  <img src="assets/header.png" alt="Aurora Header" width="55%" />
+
+  **Editing app for the future**
+
+  [![Flutter](https://img.shields.io/badge/Flutter-3.9.2-02569B?logo=flutter)](https://flutter.dev)
+  [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python)](https://www.python.org)
+  [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+</div>
 
 A comprehensive image editing and manipulation application featuring AI-powered tools for pose correction, relighting, inpainting. The project combines a Flutter frontend with a Python gRPC backend for advanced image processing capabilities.
 
 ## Description
 
-Adobe Image Editing Suite is a full-stack application designed to provide image editing capabilities AI models. The application features:
+Aurora Image Editing Suite is a full-stack application designed to provide professional image editing capabilities with AI-powered models. The application features:
 
-- **Pose Correction**: Adjust and modify human poses in images using pose landmarks
+- **Pose Correction & Reframe**: Adjust and modify human poses and object position in images using masks and pose landmarks
 - **Relighting**: Dynamically relight images with customizable light configurations
-- **Inpainting**: Remove unwanted objects and intelligently fill regions
-- **Object Detection & Segmentation**: Identify and segment objects in images
+- **Smart Editing Tools**: Context-aware inpainting and background manipulation
+
+The application features a high-performance **Flutter** frontend optimized for modern Android devices. Its robust **Python** backend utilizes **gRPC** for efficient, low-latency communication, orchestrating state-of-the-art machine learning models for advanced image processing.
 
 ## File Structure
 
 ```
-adobe/
+aurora/
 ├── README.md                 # Project documentation
 ├── grpc.init.sh             # gRPC initialization script
 ├── protos/                  # Protocol Buffer definitions
@@ -62,55 +71,20 @@ adobe/
 │   └── test/             # Flutter tests
 ```
 
-## Tech Stack
+### 🛠️ Tech Stack
 
-### Backend
-- **Runtime**: Python 3.9+
+#### Backend (Python 3.9+)
 - **Communication**: gRPC with Protocol Buffers
-- **Core Libraries**:
-  - `grpcio` & `grpcio-tools`: gRPC framework
-  - `protobuf`: Message serialization
-  - `pydantic`: Data validation
-  - `numpy`: Numerical operations
-  - `Pillow`: Image processing
-  - `opencv-python-headless`: Computer vision
-  
-### ML Models & Processing
-- **Deep Learning Frameworks**:
-  - `torch` & `torchvision`: PyTorch deep learning
-  - `transformers`: Hugging Face transformer models
-  - `diffusers`: Diffusion model pipelines
-  - `peft`: Parameter-efficient fine-tuning
-  
-- **Specialized Models**:
-  - `mediapipe`: Pose landmark detection
-  - `ultralytics`: YOLO object detection
-  - `timm`: PyTorch image models
-  - `scipy`: Scientific computing
-  - `accelerate`: Distributed training utilities
+- **Core**: `grpcio`, `protobuf`, `pydantic`, `numpy`, `Pillow`, `opencv-python-headless`
+- **ML Frameworks**: `torch`, `torchvision`, `transformers`, `diffusers`, `peft`
+- **Specialized Models**: `mediapipe` (Pose), `ultralytics` (YOLO), `timm`
 
-### Frontend
+#### Frontend (Flutter 3.9.2+)
 - **Framework**: Flutter 3.9.2+
-- **Image Processing**:
-  - `image_picker`: Image selection
-  - `image`: Image manipulation
-  - `crop_image`: Image cropping
-  
-- **ML on Device**:
-  - `tflite_flutter`: TensorFlow Lite models
-  - `onnxruntime_v2`: ONNX model inference
-  
-- **Communication**:
-  - `grpc`: gRPC client for Dart
-  - `flutter_dotenv`: Environment configuration
-  
-- **UI/UX**:
-  - `google_fonts`: Custom typography
-  - `flutter_svg`: SVG rendering
-  - `liquid_glass_renderer`: Glass morphism effects
-  - `share_plus`: Share functionality
-  - `path_provider`: File system access
-  - `cupertino_icons`: iOS-style icons
+- **Image Processing**: `image_picker`, `image`, `crop_image`
+- **ML on Device**: `tflite_flutter`, `onnxruntime_v2`
+- **Communication**: `grpc`, `flutter_dotenv`
+- **UI/UX**: `google_fonts`, `flutter_svg`, `liquid_glass_renderer`, `share_plus`, `path_provider`, `cupertino_icons`
 
 ## Local Testing
 
@@ -194,50 +168,60 @@ Ensure both backend and frontend are running on the same network. Configure the 
 
 ## User Workflow
 
-### Mobile/Desktop Application Flow
+<!-- TODO: Add GIFS here later -->
 
-1. **Launch Application**
-   - User opens the image editing application
+### 📱 Mobile/Desktop Application Flow
+
+**1. Launch Application**
+   - Open the Aurora image editing application
    - Application loads available editing tools
 
-2. **Image Selection**
+**2. Image Selection**
    - Select an image from gallery or camera
    - Image is displayed in the editor canvas
 
-3. **Select Editing Tool**
+**3. Select Editing Tool**
    - Choose from available tools:
-     - **Pose Correction**: Adjust human poses
-     - **Relighting**: Modify lighting conditions
-     - **Reframing**: Remove/fill regions
+     - 🧘 **Pose Correction and Reframe**
+     - 💡 **Relighting**
+     - 🎯 **Context-aware Auto Suggestion**
 
-4. **Configure Tool Parameters**
-   - **For Pose Tool**: 
-     - Choose the object/subject to be edited
-     - Adjust pose landmarks by dragging points
-     - Confirm and apply changes
-   
-   - **For Relighting Tool**:
-     - Choose the object to be relit
-     - Select light positions and intensity
-     - Adjust color temperature
-     - Apply changes
-   
-   - **For Reframing Tool**:
-     - Paint/mark regions to remove
-     - Select fill style (inpaint, remove object)
-     - Preview result
-     - Apply changes
+**4. Configure Tool Parameters**
 
-5. **Processing**
+   <details>
+   <summary><b>Pose & Reframe Tool</b></summary>
+   
+   - Choose the object/subject to be edited
+   - Adjust pose landmarks by dragging points
+   - Select region and drag to move
+   - Preview changes in real-time
+   - Confirm and apply changes
+   </details>
+
+   <details>
+   <summary><b>Relighting Tool</b></summary>
+
+   - Choose the object to be relit
+   - Select light positions and intensity
+   - Adjust color temperature
+   - Preview relit image
+   - Apply changes
+   </details>
+
+**5. Processing**
    - Frontend sends request to backend via gRPC
    - Backend processes image using appropriate ML model
    - Processed image returned to frontend
    - Result displayed with before/after comparison
 
-6. **Edit History**
+**6. Edit History**
    - Maintain edit history for undo/redo
    - User can revert to previous versions
-   - Export final edited image
+
+**7. Export**
+   - Save edited image to device storage
+   - Share to social media or messaging apps
+   - Save as project for later editing
 
 ### Backend Processing Pipeline
 
@@ -287,9 +271,12 @@ Ensure both backend and frontend are running on the same network. Configure the 
 - **SigLIP Tags**: Image tagging and classification
 - **Transformers**: Various pretrained models for feature extraction
 
+
+<!-- This is the start of Pipelines Architecture -->
+
 ## Pipelines Architecture
 
-### Pose Correction Pipeline
+### Pose Correction and Reframe Pipeline
 
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
 
@@ -299,18 +286,30 @@ The pose correction pipeline enables users to adjust and modify human poses in i
 3. **Pose Warping**: Applied transformation to remap pixels based on modified pose
 4. **Blending**: Seamless integration of transformed regions with original image context
 
+The object reframing pipeline intelligently detects, extracts, relocates, and reintegrates objects within an image while maintaining visual harmony.
+
+**Pipeline Components**:
+1. **Object Detection & Segmentation**: Utilizes MagicTouch to detect objects in user-selected regions.
+2. **Object Extraction**: Extracts the foreground object patch from the original image based on depth.
+3. **Background Restoration**: The original region where the object was removed is inpainted using LaMa (dilated convolution) for structural restoration
+4. **Object Placement**: Seamless integration of transformed regions with original image context
+
 **Input Parameters**:
 - Original image (RGB format)
 - Offset configuration (JSON with landmark adjustments)
+- Object selection coordinates
+- Transform parameters for translation
 - Optional mask for region-specific processing
-
+   
 **Output**:
-- Pose-corrected image maintaining visual coherence
+- Pose-corrected, reframed image maintaining visual coherence
 
 **Performance Considerations**:
 - Real-time landmark detection (< 50ms on CPU)
 - Warping complexity scales with image resolution
 - Recommended resolution: 512×768 for optimal quality/speed trade-off
+- Typical runtime: 1–5 seconds
+- Memory: 1.5–3 GB VRAM
 
 ### Relighting Pipeline
 
@@ -337,29 +336,6 @@ The relighting pipeline dynamically adjusts lighting conditions in images with c
 - Model inference: under 10 seconds for 1024x1024 images
 - GPU acceleration recommended for production use
 - Memory requirement: ~GB VRAM for batch processing
-
-### Inpainting Pipeline
-
-Context-aware image inpainting to remove unwanted objects and intelligently fill regions.
-
-**Pipeline Components**:
-1. **Mask Processing**: Accepts user-painted or segmentation-based masks
-2. **Feature Extraction**: Extracts surrounding context from non-masked regions
-3. **LAMA Model**: Diffusion-based inpainting with large receptive field
-4. **Refinement**: Post-processing to blend inpainted regions seamlessly
-
-**Input Parameters**:
-- Original image
-- Binary mask indicating regions to inpaint
-- Optional style hints or reference patterns
-
-**Output**:
-- Inpainted image with contextually appropriate content
-
-**Performance Considerations**:
-- Inference time: 2-4 seconds for 512×512 images
-- Larger masks increase computational complexity
-- Quality improves with clear surrounding context
 
 ## Compute Profile and Resource Requirements
 
@@ -449,21 +425,6 @@ Return to Frontend
 | Desktop | 1024×1536 | 2048×3072 |
 | GPU-enabled | 2048×3072 | 4096×6144 |
 
-### Load Balancing and Scaling
-
-#### Single Server Architecture
-```
-gRPC Server (Port 50051)
-├── Thread Pool: 10 workers
-├── Max Concurrent: 2 parallel heavy operations
-└── Queue: Request queue for fairness
-```
-
-#### Multi-Server Scaling (Future)
-- **Load Balancer**: Route requests round-robin
-- **Horizontal Scaling**: Add servers for 10x+ throughput
-- **Model Replication**: Each server loads models independently
-
 ### Memory Management
 
 #### Backend Memory Strategy
@@ -507,39 +468,3 @@ pose_model = PoseCorrectionPipeline()  # ~1 GB
 - **Idle**: 100-200 W
 - **Single request processing**: 300-600 W
 - **Peak load (4+ concurrent)**: 800-1200 W
-
-### Error Handling and Fallbacks
-
-#### Graceful Degradation
-```
-Request Received
-    ↓
-Try High-Quality Model
-    ↓ [Timeout/Error]
-Fallback to Faster Model
-    ↓ [Still Fails]
-Return Best Available Result + Error Message
-```
-
-#### Retry Logic
-- **Max Retries**: 3 attempts with exponential backoff
-- **Backoff Strategy**: 100ms, 500ms, 2000ms
-- **Circuit Breaker**: Disable service if failure rate > 50%
-
-## Contributing
-
-When contributing to this project:
-
-1. Ensure backend changes include updated proto files if APIs change
-2. Regenerate protobuf files for both Python and Dart
-3. Test gRPC communication between frontend and backend
-4. Follow Flutter and Python code style guidelines
-5. Update documentation for significant changes
-
-## License
-
-[Add your license information here]
-
-## Support
-
-For issues, questions, or suggestions, please create an issue in the repository.

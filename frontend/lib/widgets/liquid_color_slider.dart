@@ -1,4 +1,4 @@
-import 'package:apex/theme/liquid_glass_theme.dart';
+import 'package:aurora/theme/liquid_glass_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
@@ -33,10 +33,10 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
   void didUpdateWidget(LiquidColorSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.color != widget.color) {
-       final HSVColor hsv = HSVColor.fromColor(widget.color);
-       // Only update position if the color change implies a significant hue change
-       // This prevents jitter when dragging if we were to reverse-map continuously
-       // But for now, let's trust the drag to control position.
+      final HSVColor hsv = HSVColor.fromColor(widget.color);
+      // Only update position if the color change implies a significant hue change
+      // This prevents jitter when dragging if we were to reverse-map continuously
+      // But for now, let's trust the drag to control position.
     }
   }
 
@@ -44,7 +44,7 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
     setState(() {
       _thumbPosition = position.clamp(0.0, 1.0);
     });
-    
+
     // First 10% is white
     if (_thumbPosition < 0.1) {
       widget.onColorChanged(Colors.white);
@@ -69,7 +69,8 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
 
         return GestureDetector(
           onHorizontalDragUpdate: (details) {
-            final double newPosition = (_thumbPosition * width + details.delta.dx) / width;
+            final double newPosition =
+                (_thumbPosition * width + details.delta.dx) / width;
             _updateColor(newPosition);
           },
           onTapDown: (details) {
@@ -92,7 +93,9 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
                     saturation: 1,
                   ),
                   child: LiquidGlass(
-                    shape: LiquidRoundedSuperellipse(borderRadius: trackHeight / 2),
+                    shape: LiquidRoundedSuperellipse(
+                      borderRadius: trackHeight / 2,
+                    ),
                     child: Container(
                       height: trackHeight,
                       width: width,
@@ -135,7 +138,10 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
                 ),
 
                 Positioned(
-                  left: (_thumbPosition * (width - thumbSize)).clamp(0.0, width - thumbSize),
+                  left: (_thumbPosition * (width - thumbSize)).clamp(
+                    0.0,
+                    width - thumbSize,
+                  ),
                   child: LiquidGlassLayer(
                     settings: const LiquidGlassSettings(
                       thickness: 20,
@@ -145,7 +151,9 @@ class _LiquidColorSliderState extends State<LiquidColorSlider> {
                       saturation: 1.2,
                     ),
                     child: LiquidGlass(
-                      shape: LiquidRoundedSuperellipse(borderRadius: thumbSize / 2),
+                      shape: LiquidRoundedSuperellipse(
+                        borderRadius: thumbSize / 2,
+                      ),
                       child: Container(
                         width: thumbSize,
                         height: thumbSize,
