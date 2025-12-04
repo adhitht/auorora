@@ -53,6 +53,7 @@ dependencies:
 
   protobuf: any
   path: any
+  get_it: ^9.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

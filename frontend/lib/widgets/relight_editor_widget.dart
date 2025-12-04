@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../theme/liquid_glass_theme.dart';
 import '../services/segmentation_service.dart';
+import '../service_locator.dart';
 import 'glass_button.dart';
 import 'segmentation_feedback_overlay.dart';
 import 'light_paint_stroke.dart';
@@ -230,7 +231,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
 
     setState(() => _isProcessing = true);
 
-    final service = RelightingService();
+    final service = getIt<RelightingService>();
 
     final imageBytes = await widget.imageFile.readAsBytes();
     final maskBytes = await _getMaskBytes();

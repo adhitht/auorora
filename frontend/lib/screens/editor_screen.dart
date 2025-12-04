@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../theme/liquid_glass_theme.dart';
+import '../service_locator.dart';
 import '../services/image_processing_service.dart';
 import '../services/edit_history_manager.dart';
 import '../services/siglip_service.dart';
@@ -46,10 +47,10 @@ class _EditorScreenState extends State<EditorScreen>
   Widget Function()? _reframeControlPanelBuilder;
 
 
-  final ImageProcessingService _imageService = ImageProcessingService();
-  final SigLipService _sigLipService = SigLipService();
-  final SegmentationService _segmentationService = SegmentationService();
-  final NotificationService _notificationService = NotificationService(); // Initialize NotificationService
+  final ImageProcessingService _imageService = getIt<ImageProcessingService>();
+  final SigLipService _sigLipService = getIt<SigLipService>();
+  final SegmentationService _segmentationService = getIt<SegmentationService>();
+  final NotificationService _notificationService = getIt<NotificationService>();
   late final EditHistoryManager _historyManager;
   final RelightEditorController _relightController = RelightEditorController();
 
@@ -122,9 +123,7 @@ class _EditorScreenState extends State<EditorScreen>
   void dispose() {
     _historyManager.removeListener(_onHistoryChanged);
     _historyManager.dispose();
-    _sigLipService.dispose();
-    _segmentationService.dispose();
-    _notificationService.dispose(); // Dispose NotificationService
+    disposeEditorServices(); // Dispose heavy services
     _relightController.dispose();
     super.dispose();
   }

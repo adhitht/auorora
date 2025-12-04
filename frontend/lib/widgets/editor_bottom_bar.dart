@@ -661,12 +661,6 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error analyzing prompt: $e')),
         );
-        // setState(() {
-        //   _messages.add(ChatMessage(
-        //     text: "Error: $e",
-        //     isUser: false,
-        //   ));
-        // });
       }
     }
   }

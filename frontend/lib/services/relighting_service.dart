@@ -51,6 +51,10 @@ class RelightingService {
   }
 
   Future<void> shutdown() async {
-    await _channel.shutdown();
+    try {
+      await _channel.shutdown();
+    } catch (e) {
+      debugPrint('RelightingService shutdown error: $e');
+    }
   }
 }
