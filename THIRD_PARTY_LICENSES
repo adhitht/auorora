@@ -1,0 +1,435 @@
+====================================================================
+LaMa‑Dilated (Qualcomm AI Hub version)
+====================================================================
+QUIC Proprietary / Confidential
+
+TERMS AND CONDITIONS OF USE – AI Model & Software License
+
+Copyright © Qualcomm Innovation Center, Inc. ("QuIC")
+
+By downloading and/or using the Software, you agree to all terms in the
+full Qualcomm AI Hub license (PROVIDED BELOW). You may use the Software 
+only as allowed under this license, including restrictions on:
+
+- Non-exclusive, non-transferable, revocable, royalty-free license
+  solely to develop software applications.
+- Demonstration, modification of source code to build your application.
+- Distribution only in object-code form incorporated in your software.
+- Compliance with all applicable laws, third-party licenses, and prohibited/high-risk use clauses.
+- No standalone redistribution of model weights or binaries.
+
+**Full License Text from Qualcomm AI Hub** (as provided by user):
+[Embed the entire license text you pasted here. Ensure it remains unaltered.]
+
+Reference: https://aihub.qualcomm.com/models/lama_dilated
+
+====================================================================
+Qwen2.5‑0.5B‑Instruct‑GGUF
+====================================================================
+Apache License 2.0
+
+Copyright (c) 2024, Alibaba Cloud
+
+Licensed under the Apache License, Version 2.0 (the "License"); 
+you may not use this file except in compliance with the License. 
+You may obtain a copy at: http://www.apache.org/licenses/LICENSE-2.0
+
+The software is provided "AS IS", without warranties or conditions of any kind.
+Reference: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
+====================================================================
+MagicTouch
+====================================================================
+MIT License
+
+Copyright (c) [Original Authors — Insert here]
+
+Permission is hereby granted, free of charge, to any person obtaining 
+a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation 
+the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, subject to the following conditions:
+
+- Include the copyright notice and this permission notice in all copies.
+- The software is provided "AS IS", without warranty of any kind.
+
+Reference: [Insert HuggingFace / GitHub link]
+
+====================================================================
+Depth-Anything V2 Large
+====================================================================
+MIT License
+
+Copyright (c) [Insert Author / Entity]
+====================================================================
+LaMa‑Dilated (Qualcomm AI Hub version)
+====================================================================
+QUIC Proprietary / Confidential
+
+TERMS AND CONDITIONS OF USE – AI Model & Software License
+
+Copyright © Qualcomm Innovation Center, Inc. ("QuIC")
+
+By downloading and/or using the Software, you agree to all terms in the
+full Qualcomm AI Hub license (PROVIDED BELOW). You may use the Software 
+only as allowed under this license, including restrictions on:
+
+- Non-exclusive, non-transferable, revocable, royalty-free license
+  solely to develop software applications.
+- Demonstration, modification of source code to build your application.
+- Distribution only in object-code form incorporated in your software.
+- Compliance with all applicable laws, third-party licenses, and prohibited/high-risk use clauses.
+- No standalone redistribution of model weights or binaries.
+
+**Full License Text from Qualcomm AI Hub** (as provided by user):
+[Embed the entire license text you pasted here. Ensure it remains unaltered.]
+
+Reference: https://aihub.qualcomm.com/models/lama_dilated
+
+====================================================================
+Qwen2.5‑0.5B‑Instruct‑GGUF
+====================================================================
+Apache License 2.0
+
+Copyright (c) 2024, Alibaba Cloud
+
+Licensed under the Apache License, Version 2.0 (the "License"); 
+you may not use this file except in compliance with the License. 
+You may obtain a copy at: http://www.apache.org/licenses/LICENSE-2.0
+
+The software is provided "AS IS", without warranties or conditions of any kind.
+Reference: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
+====================================================================
+MagicTouch
+====================================================================
+MIT License
+
+Copyright (c) [Original Authors — Insert here]
+
+Permission is hereby granted, free of charge, to any person obtaining 
+a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation 
+the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, subject to the following conditions:
+
+- Include the copyright notice and this permission notice in all copies.
+- The software is provided "AS IS", without warranty of any kind.
+
+Reference: [Insert HuggingFace / GitHub link]
+
+====================================================================
+Depth-Anything V2 Large
+====================================================================
+MIT License
+
+Copyright (c) [Insert Author / Entity]
+
+Permission is hereby granted to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies, subject to the MIT license terms.
+
+Reference: https://huggingface.co/depth-anything/Depth-Anything-V2-Large-hf
+
+====================================================================
+SigLIP Base Patch16-224
+====================================================================
+Apache License 2.0
+
+Copyright (c) Xenova
+
+Licensed under Apache License 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Reference: https://huggingface.co/Xenova/siglip-base-patch16-224
+
+====================================================================
+MediaPipe Holistic
+====================================================================
+Apache License 2.0
+
+Copyright (c) Google
+
+Reference: https://developers.google.com/mediapipe/solutions/vision/holistic
+
+====================================================================
+Stable Diffusion 1.5
+====================================================================
+CreativeML OpenRAIL-M License
+
+Copyright (c) Stability AI
+
+Reference: Include full OpenRAIL-M license text. 
+
+====================================================================
+Pose Landmark Model
+====================================================================
+[Insert License / Source here]
+
+===================================================================
+NOTES & COMPLIANCE GUIDANCE
+====================================================================
+- Preserve copyright notices and license texts when redistributing models.
+- LaMa-Dilated from Qualcomm: do NOT redistribute raw model files standalone.
+- Permissive licenses (MIT, Apache) allow modification and commercial use with attribution.
+- OpenRAIL-M restricts harmful use — comply with the license before deployment.
+- For proprietary models, follow all terms (use case restrictions, high-risk clauses, export control, etc.)
+=
+Permission is hereby granted to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies, subject to the MIT license terms.
+
+Reference: https://huggingface.co/depth-anything/Depth-Anything-V2-Large-hf
+
+====================================================================
+SigLIP Base Patch16-224
+====================================================================
+Apache License 2.0
+
+Copyright (c) Xenova
+
+Licensed under Apache License 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Reference: https://huggingface.co/Xenova/siglip-base-patch16-224
+
+====================================================================
+MediaPipe Holistic
+====================================================================
+Apache License 2.0
+
+Copyright (c) Google
+
+Reference: https://developers.google.com/mediapipe/solutions/vision/holistic
+
+====================================================================
+Stable Diffusion 1.5
+====================================================================
+CreativeML OpenRAIL-M License
+
+Copyright (c) Stability AI
+
+R====================================================================
+LaMa‑Dilated (Qualcomm AI Hub version)
+====================================================================
+QUIC Proprietary / Confidential
+
+TERMS AND CONDITIONS OF USE – AI Model & Software License
+
+Copyright © Qualcomm Innovation Center, Inc. ("QuIC")
+
+By downloading and/or using the Software, you agree to all terms in the
+full Qualcomm AI Hub license (PROVIDED BELOW). You may use the Software 
+only as allowed under this license, including restrictions on:
+
+- Non-exclusive, non-transferable, revocable, royalty-free license
+  solely to develop software applications.
+- Demonstration, modification of source code to build your application.
+- Distribution only in object-code form incorporated in your software.
+- Compliance with all applicable laws, third-party licenses, and prohibited/high-risk use clauses.
+- No standalone redistribution of model weights or binaries.
+
+**Full License Text from Qualcomm AI Hub** (as provided by user):
+[Embed the entire license text you pasted here. Ensure it remains unaltered.]
+
+Reference: https://aihub.qualcomm.com/models/lama_dilated
+
+====================================================================
+Qwen2.5‑0.5B‑Instruct‑GGUF
+====================================================================
+Apache License 2.0
+
+Copyright (c) 2024, Alibaba Cloud
+
+Licensed under the Apache License, Version 2.0 (the "License"); 
+you may not use this file except in compliance with the License. 
+You may obtain a copy at: http://www.apache.org/licenses/LICENSE-2.0
+
+The software is provided "AS IS", without warranties or conditions of any kind.
+Reference: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
+====================================================================
+MagicTouch
+====================================================================
+MIT License
+
+Copyright (c) [Original Authors — Insert here]
+
+Permission is hereby granted, free of charge, to any person obtaining 
+a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation 
+the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, subject to the following conditions:
+
+- Include the copyright notice and this permission notice in all copies.
+- The software is provided "AS IS", without warranty of any kind.
+
+Reference: [Insert HuggingFace / GitHub link]
+
+====================================================================
+Depth-Anything V2 Large
+====================================================================
+MIT License
+
+Copyright (c) [Insert Author / Entity]
+
+Permission is hereby granted to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies, subject to the MIT license terms.
+
+Reference: https://huggingface.co/depth-anything/Depth-Anything-V2-Large-hf
+
+====================================================================
+S====================================================================
+LaMa‑Dilated (Qualcomm AI Hub version)
+====================================================================
+QUIC Proprietary / Confidential
+
+TERMS AND CONDITIONS OF USE – AI Model & Software License
+
+Copyright © Qualcomm Innovation Center, Inc. ("QuIC")
+
+By downloading and/or using the Software, you agree to all terms in the
+full Qualcomm AI Hub license (PROVIDED BELOW). You may use the Software 
+only as allowed under this license, including restrictions on:
+
+- Non-exclusive, non-transferable, revocable, royalty-free license
+  solely to develop software applications.
+- Demonstration, modification of source code to build your application.
+- Distribution only in object-code form incorporated in your software.
+- Compliance with all applicable laws, third-party licenses, and prohibited/high-risk use clauses.
+- No standalone redistribution of model weights or binaries.
+
+**Full License Text from Qualcomm AI Hub** (as provided by user):
+[Embed the entire license text you pasted here. Ensure it remains unaltered.]
+
+Reference: https://aihub.qualcomm.com/models/lama_dilated
+
+====================================================================
+Qwen2.5‑0.5B‑Instruct‑GGUF
+====================================================================
+Apache License 2.0
+
+Copyright (c) 2024, Alibaba Cloud
+
+Licensed under the Apache License, Version 2.0 (the "License"); 
+you may not use this file except in compliance with the License. 
+You may obtain a copy at: http://www.apache.org/licenses/LICENSE-2.0
+
+The software is provided "AS IS", without warranties or conditions of any kind.
+Reference: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+
+====================================================================
+MagicTouch
+====================================================================
+MIT License
+
+Copyright (c) [Original Authors — Insert here]
+
+Permission is hereby granted, free of charge, to any person obtaining 
+a copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation 
+the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+and/or sell copies of the Software, subject to the following conditions:
+
+- Include the copyright notice and this permission notice in all copies.
+- The software is provided "AS IS", without warranty of any kind.
+
+Reference: [Insert HuggingFace / GitHub link]
+
+====================================================================
+Depth-Anything V2 Large
+====================================================================
+MIT License
+
+Copyright (c) [Insert Author / Entity]
+
+Permission is hereby granted to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies, subject to the MIT license terms.
+
+Reference: https://huggingface.co/depth-anything/Depth-Anything-V2-Large-hf
+
+====================================================================
+SigLIP Base Patch16-224
+====================================================================
+Apache License 2.0
+
+Copyright (c) Xenova
+
+Licensed under Apache License 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Reference: https://huggingface.co/Xenova/siglip-base-patch16-224
+
+====================================================================
+MediaPipe Holistic
+====================================================================
+Apache License 2.0
+
+Copyright (c) Google
+
+Reference: https://developers.google.com/mediapipe/solutions/vision/holistic
+
+====================================================================
+Stable Diffusion 1.5
+====================================================================
+CreativeML OpenRAIL-M License
+
+Copyright (c) Stability AI
+
+Reference: Include full OpenRAIL-M license text. 
+
+====================================================================
+Pose Landmark Model
+====================================================================
+[Insert License / Source here]
+
+====================================================================
+NOTES & COMPLIANCE GUIDANCE
+====================================================================
+- Preserve copyright notices and license texts when redistributing models.
+- LaMa-Dilated from Qualcomm: do NOT redistribute raw model files standalone.
+- Permissive licenses (MIT, Apache) allow modification and commercial use with attribution.
+- OpenRAIL-M restricts harmful use — comply with the license before deployment.
+- For proprietary models, follow all terms (use case restrictions, high-risk clauses, export control, etc.)
+igLIP Base Patch16-224
+====================================================================
+Apache License 2.0
+
+Copyright (c) Xenova
+
+Licensed under Apache License 2.0: http://www.apache.org/licenses/LICENSE-2.0
+
+Reference: https://huggingface.co/Xenova/siglip-base-patch16-224
+
+====================================================================
+MediaPipe Holistic
+====================================================================
+Apache License 2.0
+
+Copyright (c) Google
+
+Reference: https://developers.google.com/mediapipe/solutions/vision/holistic
+
+====================================================================
+Stable Diffusion 1.5
+====================================================================
+CreativeML OpenRAIL-M License
+
+Copyright (c) Stability AI
+
+Reference: Include full OpenRAIL-M license text. 
+
+====================================================================
+Pose Landmark Model
+====================================================================
+[Insert License / Source here]
+
+====================================================================
+NOTES & COMPLIANCE GUIDANCE
+====================================================================
+- Preserve copyright notices and license texts when redistributing models.
+- LaMa-Dilated from Qualcomm: do NOT redistribute raw model files standalone.
+- Permissive licenses (MIT, Apache) allow modification and commercial use with attribution.
+- OpenRAIL-M restricts harmful use — comply with the license before deployment.
+- For proprietary models, follow all terms (use case restrictions, high-risk clauses, export control, etc.)
+eference: Include full OpenRAIL-M license text. 
+
+===================================================================
+NOTES & COMPLIANCE GUIDANCE
+====================================================================
+- Preserve copyright notices and license texts when redistributing models.
+- LaMa-Dilated from Qualcomm: do NOT redistribute raw model files standalone.
+- Permissive licenses (MIT, Apache) allow modification and commercial use with attribution.
+- OpenRAIL-M restricts harmful use — comply with the license before deployment.
+- For proprietary models, follow all terms (use case restrictions, high-risk clauses, export control, etc.)
