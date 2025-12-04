@@ -1,65 +1,51 @@
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'llm_service.dart';
 
 class SuggestionsService {
-  Map<String, List<String>> _suggestions = {};
+  final LlmService _llmService;
 
-  Future<void> loadSuggestions() async {
-    if (_suggestions.isNotEmpty) return;
+  SuggestionsService(this._llmService);
+
+  // Keep loadSuggestions for compatibility if needed, or remove if fully dynamic.
+  // For now, we'll just make it a no-op or keep it if we want hybrid.
+  Future<void> loadSuggestions() async {}
+
+  Future<List<String>> generateSuggestions(List<String>? tags) async {
+    final tagsString = (tags == null || tags.isEmpty) ? "generic image" : tags.join(', ');
     
+    final systemPrompt = 
+      "You are a smart photo editor assistant for an app with these features: "
+      "1. Relight: Add lights (spot/directional) with color and position. "
+      "2. Reframe: Crop to aspect ratios (1:1, 16:9) or for purposes (passport, social). "
+      "3. Pose Correction: Fix head/body pose. "
+      "Based on the detected tags, suggest 3 distinct, actionable commands. "
+      "RULES: "
+      "- If 'person', 'face', 'man', 'woman' are NOT in tags, DO NOT suggest passport photos or pose correction. "
+      "- If 'no_human' is in tags, NEVER suggest human-related edits. "
+      "- For landscapes/objects, focus on lighting (e.g. 'Add sunset light') and framing. "
+      "Output ONLY a valid JSON list of strings. "
+      "Example: [\"Add red light to the right\", \"Crop to 1:1 square\", \"Add cinematic lighting\"]";
+
     try {
-      final String response = await rootBundle.loadString('assets/suggestions.json');
-      final data = json.decode(response);
-      _suggestions = Map<String, List<String>>.from(
-        data.map((key, value) => MapEntry(key, List<String>.from(value))),
+      final response = await _llmService.generateResponse(
+        "Tags: $tagsString", 
+        systemPrompt: systemPrompt
       );
+      
+      debugPrint('SuggestionsService: LLM Response: $response');
+      
+      final List<dynamic> jsonList = jsonDecode(response);
+      return jsonList.map((e) => e.toString()).toList();
     } catch (e) {
-      debugPrint('Error loading suggestions: $e');
+      debugPrint('Error generating suggestions: $e');
+      // Fallback suggestions
+      return ["Relight the scene", "Crop the image", "Add cinematic lighting"];
     }
   }
 
+  // Deprecated synchronous method, kept for compatibility during refactor
   List<String> getSuggestionsForTags(List<String>? tags) {
-    if (_suggestions.isEmpty) return [];
-
-    if (tags == null || tags.isEmpty) {
-      return [];
-    }
-
-    Set<String> relevantKeys = {};
-    final normalizedTags = tags.map((e) => e.toLowerCase()).toSet();
-
-    if (normalizedTags.any((t) => ['person', 'man', 'woman', 'boy', 'girl', 'human', 'people'].contains(t))) {
-      relevantKeys.add('human_present');
-    } else {
-      relevantKeys.add('no_human');
-    }
-
-    if (normalizedTags.any((t) => ['face', 'head', 'portrait', 'smile'].contains(t))) {
-      relevantKeys.add('face_visible');
-    } else {
-      relevantKeys.add('face_not_visible');
-    }
-    
-    if (normalizedTags.any((t) => ['outdoor', 'sky', 'nature', 'tree', 'grass', 'mountain', 'beach'].contains(t))) {
-      relevantKeys.add('background_outdoor');
-    }
-    
-    if (normalizedTags.any((t) => ['indoor', 'room', 'furniture', 'wall', 'window'].contains(t))) {
-      relevantKeys.add('background_indoor');
-    }
-
-    List<String> newSuggestions = [];
-    for (var key in relevantKeys) {
-      if (_suggestions.containsKey(key)) {
-        newSuggestions.addAll(_suggestions[key]!);
-      }
-    }
-    
-    if (newSuggestions.isEmpty) {
-       return [];
-    }
-
-    return newSuggestions;
+    return [];
   }
 }

@@ -6,8 +6,8 @@ import 'package:share_plus/share_plus.dart';
 import '../theme/liquid_glass_theme.dart';
 import '../services/image_processing_service.dart';
 import '../services/edit_history_manager.dart';
-import '../services/siglip_service.dart'; // Import SigLipService
-import '../services/segmentation_service.dart'; // Import SegmentationService
+import '../services/siglip_service.dart';
+import '../services/segmentation_service.dart';
 import '../models/edit_history.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/editor_bottom_bar.dart';
@@ -17,8 +17,8 @@ import '../widgets/relight_editor_controller.dart';
 import '../widgets/reframe_editor_widget.dart';
 import '../widgets/history_viewer_dialog.dart';
 import '../widgets/privacy_notice_dialog.dart';
-import '../widgets/notification_bar.dart'; // Import NotificationBar
-import '../services/notification_service.dart'; // Import NotificationService
+import '../widgets/notification_bar.dart';
+import '../services/notification_service.dart';
 
 class EditorScreen extends StatefulWidget {
   final File photoFile;
@@ -39,7 +39,7 @@ class _EditorScreenState extends State<EditorScreen>
   bool _isCropMode = false;
   bool _isRelightMode = false;
   bool _isReframeMode = false;
-  bool _isChatMode = false; // Add Chat Mode
+  bool _isChatMode = false;
 
   Widget Function()? _relightControlPanelBuilder;
   Widget Function()? _cropControlPanelBuilder;
@@ -58,13 +58,10 @@ class _EditorScreenState extends State<EditorScreen>
     super.initState();
     _currentPhotoFile = widget.photoFile;
 
-    // Initialize services
     _initializeServices();
 
-    // Initialize history manager
     _historyManager = EditHistoryManager(maxHistorySize: 50);
 
-    // Add initial image to history
     _historyManager.addEntry(
       EditHistoryEntry(
         imageFile: widget.photoFile,
@@ -79,7 +76,7 @@ class _EditorScreenState extends State<EditorScreen>
     _historyManager.addListener(_onHistoryChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 100));
       if (mounted) {
         _showPrivacyNotice();
       }

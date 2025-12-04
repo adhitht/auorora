@@ -66,19 +66,25 @@ class LlmService {
     return file.path;
   }
 
-  Future<String> generateResponse(String prompt) async {
+  Future<String> generateResponse(String prompt, {String? systemPrompt}) async {
     if (!_isInitialized) await initialize();
     if (_contextId == null) throw Exception('LLM not initialized');
 
-    // Qwen2.5 Chat Template
-    final fullPrompt = 
-      "<|im_start|>system\n"
+    // Default System Prompt (Command Generation)
+    final defaultSystemPrompt = 
       "You are an AI assistant for a photo editor. "
       "Output ONLY valid JSON. "
       "Available actions: 'relight' (params: light direction, color, radius), 'reframe' (params: aspect ratio, crop). "
       "Coordinates (x, y) must be normalized between 0.0 and 1.0. (0,0) is top-left, (1,1) is bottom-right. "
       "For directions: 'left' -> x:0.1, y:0.5; 'right' -> x:0.9, y:0.5; 'top' -> x:0.5, y:0.1; 'bottom' -> x:0.5, y:0.9; 'center' -> x:0.5, y:0.5. "
-      "Example: {\"action\": \"relight\", \"params\": {\"lights\": [{\"type\": \"spot\", \"position\": {\"x\": 0.9, \"y\": 0.5}, \"color\": \"#FFD700\", \"intensity\": 0.8, \"radius\": 40.0}]}}\n"
+      "Example: {\"action\": \"relight\", \"params\": {\"lights\": [{\"type\": \"spot\", \"position\": {\"x\": 0.9, \"y\": 0.5}, \"color\": \"#FFD700\", \"intensity\": 0.8, \"radius\": 40.0}]}}";
+
+    final effectiveSystemPrompt = systemPrompt ?? defaultSystemPrompt;
+
+    // Qwen2.5 Chat Template
+    final fullPrompt = 
+      "<|im_start|>system\n"
+      "$effectiveSystemPrompt\n"
       "<|im_end|>\n"
       "<|im_start|>user\n"
       "$prompt\n"
