@@ -9,7 +9,7 @@ import 'package:onnxruntime_v2/onnxruntime_v2.dart';
 import 'package:path_provider/path_provider.dart';
 
 class RainnetHarmonizationService {
-  static const String _modelAssetPath = 'assets/models/rainnet_512.onnx';
+  static const String _modelAssetPath = 'assets/models/rainnet_512_int8.onnx';
 
   static const int _inputSize = 512;
 
@@ -73,29 +73,63 @@ class RainnetHarmonizationService {
     final T0 = DateTime.now();
 
     try {
-      final origW = compositeImage.width;
-      final origH = compositeImage.height;
+      // 1. Find Bounding Box of Mask
+      int minX = maskImage.width;
+      int minY = maskImage.height;
+      int maxX = 0;
+      int maxY = 0;
+      bool found = false;
 
-      // ---- Resize to Model Input Size ----
+      for (int y = 0; y < maskImage.height; y++) {
+        for (int x = 0; x < maskImage.width; x++) {
+          final pixel = maskImage.getPixel(x, y);
+          // Check red channel (assuming grayscale/white mask)
+          if (pixel.r > 128) { 
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            found = true;
+          }
+        }
+      }
+
+      if (!found) {
+        debugPrint("Rainnet: Empty mask, returning original.");
+        return Uint8List.fromList(img.encodePng(compositeImage));
+      }
+
+      // 2. Expand Bounding Box (Context)
+      // Add padding to give the model context
+      final padding = 50; 
+      minX = (minX - padding).clamp(0, maskImage.width - 1);
+      minY = (minY - padding).clamp(0, maskImage.height - 1);
+      maxX = (maxX + padding).clamp(0, maskImage.width - 1);
+      maxY = (maxY + padding).clamp(0, maskImage.height - 1);
+
+      final cropW = maxX - minX + 1;
+      final cropH = maxY - minY + 1;
+
+      // 3. Crop
+      final cropImg = img.copyCrop(compositeImage, x: minX, y: minY, width: cropW, height: cropH);
+      final cropMask = img.copyCrop(maskImage, x: minX, y: minY, width: cropW, height: cropH);
+
+      // 4. Resize to Model Input Size (512x512)
       final resizedImg = img.copyResize(
-        compositeImage,
+        cropImg,
         width: _inputSize,
         height: _inputSize,
         interpolation: img.Interpolation.linear,
       );
 
       final resizedMask = img.copyResize(
-        maskImage,
+        cropMask,
         width: _inputSize,
         height: _inputSize,
         interpolation: img.Interpolation.linear,
       );
 
       // ---- Build NCHW Input ----
-      // RainNet typically expects:
-      // Image: 1x3x512x512, normalized 0..1
-      // Mask: 1x1x512x512, 0..1
-
       final imageTensor = Float32List(1 * 3 * _inputSize * _inputSize);
       final maskTensor = Float32List(1 * 1 * _inputSize * _inputSize);
 
@@ -127,7 +161,6 @@ class RainnetHarmonizationService {
 
       // ---- Dynamic Input Names ----
       final inputs = _session!.inputNames;
-      // Usually "images" and "masks" or "input" and "mask"
       final imgName = inputs.firstWhere(
         (e) => e.toLowerCase().contains("img") || e.toLowerCase().contains("image") || e.toLowerCase().contains("input"),
         orElse: () => inputs[0],
@@ -154,10 +187,8 @@ class RainnetHarmonizationService {
       // HANDLE OUTPUT
       // ===========================================================
 
-      // output shape = [1][3][H][W]
       final batch = outValue as List;
       final cList = batch[0] as List;
-
       final rChan = cList[0] as List;
       final gChan = cList[1] as List;
       final bChan = cList[2] as List;
@@ -174,10 +205,6 @@ class RainnetHarmonizationService {
           double g = (gRow[x] as num).toDouble();
           double b = (bRow[x] as num).toDouble();
 
-          // Assuming 0..1 output. If negative or >1, clamp.
-          // Some models output -1..1, but usually 0..1.
-          // We can check range if needed, but clamping is safe.
-          
           outImg.setPixelRgb(
             x,
             y,
@@ -193,18 +220,42 @@ class RainnetHarmonizationService {
         o?.release();
       }
 
-      // ---- Resize back to original ----
-      final restored = img.copyResize(
+      // 5. Resize Output back to Crop Size
+      final restoredCrop = img.copyResize(
         outImg,
-        width: origW,
-        height: origH,
+        width: cropW,
+        height: cropH,
         interpolation: img.Interpolation.linear,
       );
+
+      // 6. Paste back with Blending
+      // Use the original mask (cropped) for high-quality alpha blending
+      for (int y = 0; y < cropH; y++) {
+        for (int x = 0; x < cropW; x++) {
+          final globalX = minX + x;
+          final globalY = minY + y;
+          
+          // Get mask value from original mask
+          final maskVal = maskImage.getPixel(globalX, globalY).r / 255.0;
+          
+          if (maskVal > 0.01) {
+            final newPx = restoredCrop.getPixel(x, y);
+            final oldPx = compositeImage.getPixel(globalX, globalY);
+            
+            // Alpha blend: New * Mask + Old * (1 - Mask)
+            final r = (newPx.r * maskVal + oldPx.r * (1 - maskVal)).round();
+            final g = (newPx.g * maskVal + oldPx.g * (1 - maskVal)).round();
+            final b = (newPx.b * maskVal + oldPx.b * (1 - maskVal)).round();
+            
+            compositeImage.setPixelRgb(globalX, globalY, r, g, b);
+          }
+        }
+      }
 
       debugPrint(
           "Harmonization OK: ${DateTime.now().difference(T0).inMilliseconds} ms");
 
-      return Uint8List.fromList(img.encodePng(restored));
+      return Uint8List.fromList(img.encodePng(compositeImage));
     } catch (e) {
       debugPrint("Harmonization ERROR: $e");
       return null;
