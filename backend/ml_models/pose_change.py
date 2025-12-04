@@ -394,6 +394,8 @@ class PoseCorrectionPipeline:
         kps_new = kps_old.copy()
         redraw_right_hand = False
         redraw_left_hand = False
+        redraw_right_leg = False
+        redraw_left_leg = False
 
         # Apply Arm Offsets
         if RIGHT_WRIST_OFFSET != (0, 0):
