@@ -11,3 +11,6 @@ __pycache__
 *.pyc
 
 venv
+
+# temporary files
+generated_env_maps/
