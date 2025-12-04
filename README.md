@@ -77,7 +77,7 @@ aurora/
 - **Communication**: gRPC with Protocol Buffers
 - **Core**: `grpcio`, `protobuf`, `pydantic`, `numpy`, `Pillow`, `opencv-python-headless`
 - **ML Frameworks**: `torch`, `torchvision`, `transformers`, `diffusers`, `peft`
-- **Specialized Models**: `mediapipe` (Pose), `ultralytics` (YOLO), `timm`
+- **Specialized Models**: `mediapipe` (Pose), `timm`
 
 #### Frontend (Flutter 3.9.2+)
 - **Framework**: Flutter 3.9.2+
@@ -87,84 +87,7 @@ aurora/
 - **UI/UX**: `google_fonts`, `flutter_svg`, `liquid_glass_renderer`, `share_plus`, `path_provider`, `cupertino_icons`
 
 ## Local Testing
-
-### Prerequisites
-- **Backend**: Python 3.9 or higher, pip
-- **Frontend**: Flutter 3.9.2+, Dart
-- **Platform-specific**: 
-  - iOS: Xcode 14+
-  - Android: Android Studio, SDK 21+
-  - Windows: Visual Studio Build Tools
-  - macOS: Xcode Command Line Tools
-  - Linux: Build essentials
-
-### Backend Setup
-
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-
-2. Create a virtual environment (recommended):
-   ```bash
-   python -m venv venv
-   # On Windows
-   venv\Scripts\activate
-   # On macOS/Linux
-   source venv/bin/activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Regenerate protobuf files (if proto files were modified):
-   ```bash
-   python -m grpc_tools.protoc -I../protos --python_out=. --grpc_python_out=. ../protos/pose.proto
-   python -m grpc_tools.protoc -I../protos --python_out=. --grpc_python_out=. ../protos/relighting.proto
-   ```
-
-5. Start the gRPC server:
-   ```bash
-   python -m backend.main
-   ```
-   The server will start on `localhost:50051`
-
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-
-2. Get Flutter dependencies:
-   ```bash
-   flutter pub get
-   ```
-
-3. Generate protobuf Dart files:
-   ```bash
-   dart run grpc:protoc_plugin
-   protoc --dart_out=grpc:lib/generated -I../protos ../protos/pose.proto
-   protoc --dart_out=grpc:lib/generated -I../protos ../protos/relighting.proto
-   ```
-
-4. Run on your target platform:
-   ```bash
-   flutter run
-   flutter run -d <device_id>
-   flutter run -d windows
-   flutter run -d macos
-   flutter run -d linux
-   ```
-
-### Testing Communication
-
-Ensure both backend and frontend are running on the same network. Configure the backend URL in the frontend:
-
-- Update the gRPC channel in `frontend/lib/services/` to point to your backend server
-- Default: `localhost:50051` for local testing
+Refer to `SETUP.md` [here](./SETUP.md).
 
 ## User Workflow
 
@@ -182,9 +105,9 @@ Ensure both backend and frontend are running on the same network. Configure the 
 
 **3. Select Editing Tool**
    - Choose from available tools:
-     - 🧘 **Pose Correction and Reframe**
-     - 💡 **Relighting**
-     - 🎯 **Context-aware Auto Suggestion**
+     - **Pose Correction and Reframe**
+     - **Relighting**
+     - **Context-aware Auto Suggestion**
 
 **4. Configure Tool Parameters**
 
