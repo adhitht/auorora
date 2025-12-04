@@ -347,6 +347,10 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
       PoseLandmarkType.leftElbow,
       PoseLandmarkType.rightHip,
       PoseLandmarkType.leftHip,
+      PoseLandmarkType.rightKnee,
+      PoseLandmarkType.leftKnee,
+      PoseLandmarkType.rightAnkle,
+      PoseLandmarkType.leftAnkle,
     ];
 
     final List<dynamic> jsonMap = [];
