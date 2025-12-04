@@ -585,7 +585,7 @@ class ReframeEditorWidgetState extends State<ReframeEditorWidget> {
 
   Widget _buildReframeWidget() {
     if (_imageSize == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: LoadingIndicator(size: 80));
     }
 
     return Padding(
