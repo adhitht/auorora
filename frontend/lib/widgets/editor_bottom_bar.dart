@@ -12,6 +12,7 @@ import '../services/notification_service.dart';
 import '../services/llm_service.dart';
 import 'relight_editor_controller.dart';
 import 'dart:async';
+import '../models/chat_message.dart';
 
 enum EditorTool {
   crop("assets/icons/transform.svg", "Transform"),
@@ -77,6 +78,8 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
   Timer? _actionTimer;
   bool _isActionPending = false;
   int _countdownSeconds = 0;
+  final List<ChatMessage> _messages = [];
+  final ScrollController _scrollController = ScrollController();
 
   Future<void> _loadSuggestions() async {
     if (_isLoadingSuggestions) return;
@@ -132,6 +135,7 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     _chatController.dispose();
     _actionTimer?.cancel();
     _semanticRouterService.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -227,6 +231,88 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_messages.isNotEmpty)
+            Container(
+              height: 200,
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ShaderMask(
+                shaderCallback: (Rect bounds) {
+                  return LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black,
+                      Colors.black,
+                    ],
+                    stops: const [0.0, 0.1, 0.4, 1.0],
+                  ).createShader(bounds);
+                },
+                blendMode: BlendMode.dstIn,
+                child: ListView.separated(
+                  controller: _scrollController,
+                  reverse: true,
+                  padding: const EdgeInsets.only(top: 20, bottom: 8),
+                  itemCount: _messages.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final message = _messages[_messages.length - 1 - index];
+                    return Align(
+                      alignment: message.isUser
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: LiquidGlassLayer(
+                        settings: const LiquidGlassSettings(
+                          thickness: 20,
+                          blur: 15,
+                          glassColor: LiquidGlassTheme.glassDark,
+                        ),
+                        child: LiquidGlass(
+                          shape: LiquidRoundedSuperellipse(borderRadius: 20),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: message.isUser
+                                  ? Colors.black.withValues(alpha: 0.5)
+                                  : Colors.black.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.only(
+                                topLeft: const Radius.circular(20),
+                                topRight: const Radius.circular(20),
+                                bottomLeft: message.isUser
+                                    ? const Radius.circular(20)
+                                    : const Radius.circular(4),
+                                bottomRight: message.isUser
+                                    ? const Radius.circular(4)
+                                    : const Radius.circular(20),
+                              ),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Text(
+                              message.text,
+                              style: GoogleFonts.roboto(
+                                color: Colors.white,
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
           if (_isLoadingSuggestions)
             SizedBox(
               height: 32,
@@ -446,6 +532,20 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     final prompt = _chatController.text.trim();
     if (prompt.isEmpty) return;
 
+    setState(() {
+      _messages.add(ChatMessage(text: prompt, isUser: true));
+    });
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+
     _chatController.clear();
     FocusScope.of(context).unfocus();
     // Show analyzing state
@@ -469,7 +569,11 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
       if (error != null) {
         debugPrint(error);
       }
-
+      
+      // setState(() {
+      //   _messages.add(ChatMessage(text: message, isUser: false));
+      // });
+      
       debugPrint('DEBUG: Action determined: $actionStr');
       debugPrint('DEBUG: Raw output: $rawOutput');
 
@@ -490,6 +594,12 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
             'Sending to Diffusion Model...',
             type: NotificationType.info,
           );
+          // setState(() {
+          //   _messages.add(ChatMessage(
+          //     text: "Sending to Diffusion Model...",
+          //     isUser: false,
+          //   ));
+          // });
         }
         return;
       }
@@ -517,6 +627,13 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
         duration: const Duration(seconds: 4),
       );
 
+      // setState(() {
+      //   _messages.add(ChatMessage(
+      //     text: "Starting $actionName in $_countdownSeconds seconds...",
+      //     isUser: false,
+      //   ));
+      // });
+
       _actionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         setState(() {
           _countdownSeconds--;
@@ -541,9 +658,15 @@ class _EditorBottomBarState extends State<EditorBottomBar> {
     } catch (e) {
       debugPrint('Error routing prompt: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error analyzing prompt: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error analyzing prompt: $e')),
+        );
+        // setState(() {
+        //   _messages.add(ChatMessage(
+        //     text: "Error: $e",
+        //     isUser: false,
+        //   ));
+        // });
       }
     }
   }

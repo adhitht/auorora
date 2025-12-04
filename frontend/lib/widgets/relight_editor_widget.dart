@@ -20,6 +20,7 @@ import 'liquid_slider.dart';
 import 'relight_editor_controller.dart';
 import 'package:aurora/models/relighting_model.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'loading_indicator.dart';
 
 enum RelightMode { relight, custom }
 
@@ -525,7 +526,11 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     if (_isInitializing ||
         widget.segmentationService.originalWidth == 0 ||
         widget.segmentationService.originalHeight == 0) {
-      return const Center(child: CircularProgressIndicator());
+    if (_isInitializing ||
+        widget.segmentationService.originalWidth == 0 ||
+        widget.segmentationService.originalHeight == 0) {
+      return const Center(child: LoadingIndicator(size: 80));
+    }
     }
 
     final aspectRatio =
@@ -755,8 +760,10 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
                                             widget.controller?.updateStrokes(_lightPaintStrokes);
                                           }
                                         },
-                                        onPanEnd: (details) =>
-                                            _stopSpotGrowth(),
+                                        onPanEnd: (details) {
+                                          _stopSpotGrowth();
+                                          _checkAndPromptForSegmentation();
+                                        },
                                         onPanCancel: () {
                                           _stopSpotGrowth();
                                           // Remove the last stroke if it was cancelled (e.g. by zoom)
@@ -777,9 +784,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
 
                         if (_isSegmenting)
                           const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                            ),
+                            child: LoadingIndicator(size: 80),
                           ),
                       ],
                     ),
@@ -795,9 +800,7 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
             child: Container(
               color: Colors.black.withValues(alpha: 0.45),
               child: const Center(
-                child: CircularProgressIndicator(
-                  color: LiquidGlassTheme.bottomBarPrimaryColor,
-                ),
+                child: LoadingIndicator(size: 80),
               ),
             ),
           ),
@@ -1051,6 +1054,19 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
   void _stopSpotGrowth() {
     _spotGrowthTimer?.cancel();
     _spotGrowthTimer = null;
+  }
+
+  void _checkAndPromptForSegmentation() {
+    if (_lightPaintStrokes.isNotEmpty &&
+        _lightPaintStrokes.last.type == LightPaintType.spot &&
+        _maskImage == null &&
+        !_isSegmentationActive) {
+      setState(() {
+        _isSegmentationActive = true;
+        _isLightPaintSelecting = false;
+      });
+      widget.onShowMessage?.call('Now tap an object to apply lighting', true);
+    }
   }
 
   Widget buildControlPanel() {
