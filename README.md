@@ -212,6 +212,7 @@ Refer to `SETUP.md` [here](./SETUP.md).
 The pose correction pipeline enables users to adjust and modify human poses in images through landmark manipulation.
 
 **Pipeline Components**:
+
 1.**Pose Detection**: MediaPipe Holistic analyzes the image to accurately map the original keypoints for all body parts.
 
 2. **Segmentation**: SAM isolates the human figure to define the exact boundaries for texture extraction and inpainting.
