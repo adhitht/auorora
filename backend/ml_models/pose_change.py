@@ -306,7 +306,7 @@ class PoseCorrectionPipeline:
             RIGHT_ANKLE = tuple(offset_config[8])
             LEFT_ANKLE = tuple(offset_config[9])
         except (IndexError, ValueError) as e:
-            raise ValueError("Invalid offset_config format. Expected list of length 7.") from e
+            raise ValueError("Invalid offset_config format. Expected list of length 10.") from e
 
         # Load Image
         if isinstance(image_input, (bytes, bytearray)):

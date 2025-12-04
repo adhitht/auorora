@@ -38,7 +38,6 @@ class RelightingService(relighting_pb2_grpc.RelightingServiceServicer):
             
             output_buffer = io.BytesIO()
             processed_image[0].save(output_buffer, format='PNG')
-            # processed_image.save(output_buffer, format=save_format)
             processed_image_data = output_buffer.getvalue()
             
             return relighting_pb2.RelightResponse(processed_image_data=processed_image_data)

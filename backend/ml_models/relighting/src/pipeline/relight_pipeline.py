@@ -64,14 +64,14 @@ class RelightPipeline(DiffusionPipeline):
 
 #-------PREPROCESSING---------
         proc_img, meta = preprocess_object(image, mask, target_res=cfg.TARGET_RES, bg_value=cfg.BG_COLOR)
-        img_np   = np.array(proc_img). astype(np.float32) / 255.0
-        img_t    = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0)  # [1,3,H,W]
-        img_t    = (img_t * 2.0 - 1.0).to(device, dtype=dtype)
+        img_np = np.array(proc_img).astype(np.float32) / 255.0
+        img_t = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0)  # [1,3,H,W]
+        img_t = (img_t * 2.0 - 1.0).to(device, dtype=dtype)
 
         #encode input image to latents
         img_latent = self.vae.encode(img_t).latent_dist.mode()
 
-#-------CLIP imgage EMBEDDING-----------
+#-------CLIP image EMBEDDING-----------
 
         #convert processed image to tensor format for CLIP preprocessing
         img_for_clip = img_t
