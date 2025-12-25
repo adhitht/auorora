@@ -527,12 +527,9 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
     if (_isInitializing ||
         widget.segmentationService.originalWidth == 0 ||
         widget.segmentationService.originalHeight == 0) {
-    if (_isInitializing ||
-        widget.segmentationService.originalWidth == 0 ||
-        widget.segmentationService.originalHeight == 0) {
       return const Center(child: LoadingIndicator(size: 80));
     }
-    }
+
 
     final aspectRatio =
         widget.segmentationService.originalWidth /
@@ -910,34 +907,31 @@ class RelightEditorWidgetState extends State<RelightEditorWidget>
 
         setState(() {
           _maskImage = maskImage;
-          if (_isLightPaintSelecting) {
-            final double scaleX =
-                widget.segmentationService.originalWidth / width;
-            final double scaleY =
-                widget.segmentationService.originalHeight / height;
+          
+          // Calculate bounds for zoom
+          final double scaleX =
+              widget.segmentationService.originalWidth / width;
+          final double scaleY =
+              widget.segmentationService.originalHeight / height;
 
-            _selectedObjectBounds = Rect.fromLTRB(
-              minX * scaleX,
-              minY * scaleY,
-              maxX * scaleX,
-              maxY * scaleY,
-            );
+          _selectedObjectBounds = Rect.fromLTRB(
+            minX * scaleX,
+            minY * scaleY,
+            maxX * scaleX,
+            maxY * scaleY,
+          );
 
-            // Use destinationSize (image display size) for viewSize, and 0 offsets because InteractiveViewer's content is the image
-            _zoomToObject(destinationSize, destinationSize, 0, 0);
-            _isLightPaintActive = true;
-            _isLightPaintSelecting = false;
-            // Initialize with empty strokes
-            _lightPaintStrokes = [];
-          } else {
-            _isSegmentationActive = false;
-          }
+          // Zoom to the selected object
+          _zoomToObject(destinationSize, destinationSize, 0, 0);
+          
+          // Ensure painting is active and strokes are preserved
+          _isLightPaintActive = true;
+          _isLightPaintSelecting = false;
+          _isSegmentationActive = false;
         });
         HapticFeedback.heavyImpact();
 
-        if (_isLightPaintActive) {
-          widget.onControlPanelReady?.call(buildControlPanel);
-        }
+        widget.onControlPanelReady?.call(buildControlPanel);
       }
     } catch (e) {
       debugPrint('Error handling tap: $e');
