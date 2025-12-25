@@ -20,6 +20,11 @@ Aurora Image Editing Suite is a full-stack application designed to provide profe
 
 The application features a high-performance **Flutter** frontend optimized for modern Android devices. Its robust **Python** backend utilizes **gRPC** for efficient, low-latency communication.
 
+## Demo Video
+<div align="center">
+  <video src="assets/demo.mp4" width="100%" controls></video>
+</div>
+
 ## File Structure
 
 ```
